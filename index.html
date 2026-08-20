@@ -866,9 +866,10 @@ function renderFno(){
     '<form class="glass panel" id="form" autocomplete="off"><h3 id="form-title">New trade</h3><div class="grid">' +
       '<div class="fld"><label for="entryDate">Date of entry</label><input type="date" id="entryDate" required></div>' +
       '<div class="fld"><label for="symbol">Symbol</label><input type="text" id="symbol" placeholder="NIFTY" required></div>' +
-      '<div class="fld"><label for="strike">Strike price</label><input type="number" id="strike" step="any" placeholder="24500"></div>' +
+      '<div class="fld"><label for="instrument">Instrument</label><select id="instrument"><option value="Option">Option</option><option value="Future">Future</option></select></div>' +
+      '<div class="fld" id="fld-strike"><label for="strike">Strike price</label><input type="number" id="strike" step="any" placeholder="24500"></div>' +
       '<div class="fld"><label for="expiry">Expiry date</label><input type="date" id="expiry"></div>' +
-      '<div class="fld"><label for="optType">Option type</label><select id="optType"><option value="Call">Call (CE)</option><option value="Put">Put (PE)</option></select></div>' +
+      '<div class="fld" id="fld-optType"><label for="optType">Option type</label><select id="optType"><option value="Call">Call (CE)</option><option value="Put">Put (PE)</option></select></div>' +
       '<div class="fld"><label for="side">Buy / Sell</label><select id="side"><option value="Sell">Sell</option><option value="Buy">Buy</option></select></div>' +
       '<div class="fld"><label for="entryPrice">Entry price</label><input type="number" id="entryPrice" step="any" placeholder="128.40 or −12.5" required></div>' +
       '<div class="fld"><label for="margin">Margin</label><input type="number" id="margin" step="any" placeholder="120000" required></div>' +
@@ -883,8 +884,12 @@ function renderFno(){
       '<div class="fld calc"><label for="roiOut">ROI</label><input type="text" id="roiOut" readonly tabindex="-1"></div>' +
       '<div class="err" id="err"></div>' +
       '<div class="actions"><button type="submit" class="btn-primary" id="submitBtn">Add trade</button>' +
+      '<button type="button" class="btn-ghost" id="addLegBtn">Save &amp; add same leg</button>' +
       '<button type="button" class="btn-ghost" id="cancelBtn" hidden>Cancel</button></div>' +
     '</div></form>' +
+
+    '<section class="glass months"><h3>Month by month</h3>' +
+    '<p class="note">Grouped by exit date — a trade lands in the month it was closed.</p><div id="monthBody"></div></section>' +
 
     '<div class="toolbar"><div class="tabs" role="tablist">' +
       '<button type="button" role="tab" data-tab="all" aria-selected="true">All</button>' +
@@ -894,9 +899,6 @@ function renderFno(){
 
     '<div class="book" id="book"></div>' +
 
-    '<section class="glass months"><h3>Month by month</h3>' +
-    '<p class="note">Grouped by exit date — a trade lands in the month it was closed.</p><div id="monthBody"></div></section>' +
-
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
     '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
 
@@ -905,7 +907,9 @@ function renderFno(){
   $('form').addEventListener('input', fnoPreview);
   $('form').addEventListener('change', fnoPreview);
   $('form').addEventListener('submit', fnoSubmit);
+  $('instrument').addEventListener('change', fnoToggleInstrument);
   $('cancelBtn').addEventListener('click', () => { fnoReset(); });
+  $('addLegBtn').addEventListener('click', () => fnoSubmit(null, true));
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
     tab = b.dataset.tab;
     document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x===b));
@@ -923,11 +927,19 @@ function renderFno(){
   fnoRefresh();
 }
 
+function fnoToggleInstrument(){
+  const isFuture = $('instrument').value === 'Future';
+  $('fld-strike').style.display = isFuture ? 'none' : '';
+  $('fld-optType').style.display = isFuture ? 'none' : '';
+  if(isFuture) $('strike').value = '';
+  fnoPreview();
+}
 function fnoRead(){
+  const instrument = $('instrument').value;
   return {
-    entryDate:$('entryDate').value, symbol:$('symbol').value.trim().toUpperCase(),
-    strike:num($('strike').value), expiry:$('expiry').value,
-    optType:$('optType').value, side:$('side').value,
+    entryDate:$('entryDate').value, symbol:$('symbol').value.trim().toUpperCase(), instrument,
+    strike: instrument==='Future' ? null : num($('strike').value), expiry:$('expiry').value,
+    optType: instrument==='Future' ? null : $('optType').value, side:$('side').value,
     entryPrice:num($('entryPrice').value), lotSize:num($('lotSize').value),
     lots:num($('lots').value), margin:num($('margin').value),
     exitDate:$('exitDate').value, exitPrice:num($('exitPrice').value)
@@ -947,6 +959,8 @@ function fnoPreview(){
 function fnoReset(){
   $('form').reset(); editingId = null;
   $('entryDate').value = today();
+  $('instrument').value = 'Option';
+  fnoToggleInstrument();
   $('form-title').textContent = 'New trade';
   $('submitBtn').textContent = 'Add trade';
   $('cancelBtn').hidden = true; $('err').textContent = '';
@@ -954,20 +968,23 @@ function fnoReset(){
 }
 function fnoFill(t){
   $('entryDate').value = t.entryDate||''; $('symbol').value = t.symbol||'';
+  $('instrument').value = t.instrument || 'Option';
+  fnoToggleInstrument();
   $('strike').value = has(t.strike)?t.strike:''; $('expiry').value = t.expiry||'';
-  $('optType').value = t.optType; $('side').value = t.side;
+  $('optType').value = t.optType || 'Call'; $('side').value = t.side;
   $('entryPrice').value = has(t.entryPrice)?t.entryPrice:'';
   $('lotSize').value = t.lotSize; $('lots').value = t.lots; $('margin').value = t.margin;
   $('exitDate').value = t.exitDate||''; $('exitPrice').value = has(t.exitPrice)?t.exitPrice:'';
   editingId = t.id;
-  $('form-title').textContent = 'Editing '+t.symbol+' '+(has(t.strike)?t.strike:'')+' '+(t.optType==='Call'?'CE':'PE');
+  const tag = t.instrument==='Future' ? 'FUT' : (has(t.strike)?t.strike:'')+' '+(t.optType==='Call'?'CE':'PE');
+  $('form-title').textContent = 'Editing '+t.symbol+' '+tag;
   $('submitBtn').textContent = 'Save changes';
   $('cancelBtn').hidden = false;
   fnoPreview();
   $('form').scrollIntoView({behavior:'smooth', block:'start'});
 }
-async function fnoSubmit(e){
-  e.preventDefault();
+async function fnoSubmit(e, addAnother){
+  if(e) e.preventDefault();
   const t = fnoRead();
   let msg = null;
   if(!t.symbol) msg = 'Add a symbol.';
@@ -979,9 +996,22 @@ async function fnoSubmit(e){
   $('err').textContent = msg || '';
   if(msg) return;
   const list = fno();
+  const wasEditing = editingId;
   if(editingId){ const i = list.findIndex(x=>x.id===editingId); list[i] = Object.assign({}, list[i], t); }
   else { t.id = uid(); list.push(t); }
-  await saveDB(); fnoReset(); fnoRefresh(); buildNav();
+  await saveDB(); buildNav();
+  if(addAnother && !wasEditing){
+    editingId = null;
+    $('form-title').textContent = 'New trade — same leg as above';
+    $('submitBtn').textContent = 'Add trade';
+    $('cancelBtn').hidden = true; $('err').textContent = '';
+    $('entryPrice').value = ''; $('lots').value = ''; $('exitDate').value = ''; $('exitPrice').value = '';
+    fnoPreview();
+    fnoRefresh();
+    $('entryPrice').focus();
+  }else{
+    fnoReset(); fnoRefresh();
+  }
 }
 async function fnoRowAction(e){
   const b = e.target.closest('button'); if(!b) return;
@@ -1008,7 +1038,9 @@ function fnoRefresh(){
     const d = fnoDerive(t);
     const el = document.createElement('article');
     el.className = 'glass tkt' + (d.profit===null ? '' : d.profit>=0 ? ' win' : ' lose');
-    const instr = [t.symbol, has(t.strike)?t.strike:'', t.optType==='Call'?'CE':'PE'].filter(String).join(' ');
+    const instr = t.instrument==='Future'
+      ? [t.symbol, 'FUT'].filter(String).join(' ')
+      : [t.symbol, has(t.strike)?t.strike:'', t.optType==='Call'?'CE':'PE'].filter(String).join(' ');
     const cls = d.profit===null ? 'idle' : d.profit>=0 ? 'pos' : 'neg';
     el.innerHTML =
       '<div class="edge"></div><div class="tkt-top"><div><div class="instr">'+esc(instr)+'</div>' +
@@ -1104,10 +1136,10 @@ function fnoMonths(closed, cap){
   body.innerHTML = html;
 }
 function fnoCsv(){
-  const head = ['Date of entry','Symbol','Strike price','Expiry date','Option type','Buy/Sell','Entry price','Lot size',
+  const head = ['Date of entry','Symbol','Instrument','Strike price','Expiry date','Option type','Buy/Sell','Entry price','Lot size',
     'No of lots','Premium received','Margin','Expected return on margin %','Exit date','Exit price','Profit','ROI %','Status'];
   const rows = fno().map(t => { const d = fnoDerive(t); return [
-    t.entryDate, t.symbol, has(t.strike)?t.strike:'', t.expiry, t.optType, t.side, t.entryPrice, t.lotSize, t.lots,
+    t.entryDate, t.symbol, t.instrument||'Option', has(t.strike)?t.strike:'', t.expiry, t.optType||'', t.side, t.entryPrice, t.lotSize, t.lots,
     d.premium.toFixed(2), t.margin, d.rom===null?'':d.rom.toFixed(2), t.exitDate||'',
     has(t.exitPrice)?t.exitPrice:'', d.profit===null?'':d.profit.toFixed(2), d.roi===null?'':d.roi.toFixed(2), d.status];});
   return [head, ...rows];
@@ -1141,6 +1173,11 @@ function isHoliday(dateStr){
     if(week === 2 || week === 4) return true;
   }
   return NATIONAL_HOLIDAYS.has(dateStr);
+}
+function ordinal(n){
+  n = Math.round(n||0);
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
 }
 function nextWorkingDay(dateStr){
   let d = new Date(dateStr+'T00:00:00');
@@ -1629,6 +1666,8 @@ function ppfPaintBody(){
       '<div class="sub">'+pendingCount+' instalment'+(pendingCount===1?'':'s')+' pending</div></div>' +
     (interest ? '<div class="glass stat"><div class="k">Interest received</div><div class="v pos">'+inr(interest)+'</div>' +
       '<div class="sub">across '+scoped.length+' account'+(scoped.length===1?'':'s')+'</div></div>' : '') +
+    '<div class="glass stat"><div class="k">Available Balance</div><div class="v pos">'+inr(invested+interest)+'</div>' +
+      '<div class="sub">total invested + interest received</div></div>' +
   '</div>' : '');
 
   html += '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="ppfNew">' +
@@ -3079,10 +3118,10 @@ function sipPaintForm(id){
       '<div class="fld"><label for="f_linkedAccount">Linked account</label><input type="text" id="f_linkedAccount" value="'+v('linkedAccount')+'" placeholder="ICICI"></div>' +
       '<div class="fld"><label for="f_folioNo">Folio no</label><input type="text" id="f_folioNo" value="'+v('folioNo')+'"></div>' +
       '<div class="fld"><label for="f_frequency">Frequency</label><select id="f_frequency">'+sel('frequency',FREQ)+'</select></div>' +
-      '<div class="fld"><label for="f_perMonth">Monthly (times)</label><input type="number" id="f_perMonth" step="1" value="'+v('perMonth')+'" placeholder="4" required></div>' +
+      (id==='sip' ? '' : '<div class="fld"><label for="f_perMonth">Monthly (times)</label><input type="number" id="f_perMonth" step="1" value="'+v('perMonth')+'" placeholder="4" required></div>') +
       '<div class="fld"><label for="f_sipDate">SIP date</label><input type="text" id="f_sipDate" value="'+v('sipDate')+'" placeholder="1st / 20th / Friday"></div>' +
       '<div class="fld"><label for="f_sipAmount">SIP amount</label><input type="number" id="f_sipAmount" step="any" value="'+v('sipAmount')+'" placeholder="1000" required></div>' +
-      '<div class="fld calc"><label for="f_monthlyInvestment">Monthly investment</label><input type="text" id="f_monthlyInvestment" readonly tabindex="-1"></div>' +
+      (id==='sip' ? '' : '<div class="fld calc"><label for="f_monthlyInvestment">Monthly investment</label><input type="text" id="f_monthlyInvestment" readonly tabindex="-1"></div>') +
       '<div class="fld"><label for="f_baseInvested">Invested till FY 2026</label><input type="number" id="f_baseInvested" step="any" value="'+v('baseInvested')+'" placeholder="37314"></div>' +
       '<div class="fld calc"><label for="f_total">Total invested</label><input type="text" id="f_total" readonly tabindex="-1"></div>' +
       '<div class="fld"><label for="f_fundValue">Fund value as on date</label><input type="number" id="f_fundValue" step="any" value="'+v('fundValue')+'"></div>' +
@@ -3094,8 +3133,10 @@ function sipPaintForm(id){
     '</div></form>';
 
   const preview = () => {
-    const perMonth = num($('f_perMonth').value) || 0, amt = num($('f_sipAmount').value) || 0;
-    $('f_monthlyInvestment').value = inr(perMonth*amt);
+    if($('f_perMonth') && $('f_monthlyInvestment')){
+      const perMonth = num($('f_perMonth').value) || 0, amt = num($('f_sipAmount').value) || 0;
+      $('f_monthlyInvestment').value = inr(perMonth*amt);
+    }
     const base = num($('f_baseInvested').value) || 0;
     const paidOnly = st.editing ? recurringTotal(Object.assign({}, sipAllOf(id).find(x=>x.id===st.editing), {baseInvested:0})) : 0;
     $('f_total').value = inr(base + paidOnly);
@@ -3111,7 +3152,7 @@ function sipPaintForm(id){
     if(!name || !holder){ $(id+'Err').textContent = cfg.nameLabel+' and holder are needed.'; return; }
     const rec = {
       name, holder, platform:$('f_platform').value.trim(), linkedAccount:$('f_linkedAccount').value.trim(),
-      folioNo:$('f_folioNo').value.trim(), frequency:$('f_frequency').value, perMonth:num($('f_perMonth').value),
+      folioNo:$('f_folioNo').value.trim(), frequency:$('f_frequency').value, perMonth: $('f_perMonth') ? num($('f_perMonth').value) : null,
       sipDate:$('f_sipDate').value.trim(), sipAmount:num($('f_sipAmount').value), baseInvested:num($('f_baseInvested').value),
       fundValue:num($('f_fundValue').value), asOn:$('f_asOn').value, status:$('f_status').value
     };
@@ -3155,7 +3196,7 @@ function sipPaintBook(id, scoped, fy){
         cell2('Platform', esc(a.platform||'—')) + cell2('Linked account', esc(a.linkedAccount||'—')) +
         cell2('Folio no', esc(a.folioNo||'—')) + cell2('Frequency', esc(a.frequency||'—')) +
         cell2('SIP date', esc(a.sipDate||'—')) + cell2('SIP amount', has(a.sipAmount)?inr(a.sipAmount):'—') +
-        cell2('Monthly investment', inr((a.perMonth||0)*(a.sipAmount||0))) +
+        (id==='sip' ? '' : cell2('Monthly investment', inr((a.perMonth||0)*(a.sipAmount||0)))) +
         cell2('Invested till FY 2026', has(a.baseInvested)?inr(a.baseInvested):'—') +
         cell2('Total invested', inr(total)) + cell2('Fund value as on date', has(a.fundValue)?inr(a.fundValue):'—') +
         cell2('Value as on', fmtDate(a.asOn)) +
@@ -3199,14 +3240,16 @@ function sipPaintBook(id, scoped, fy){
 
 function sipCsv(id){
   const cfg = SIPLIKE_CFG[id];
-  const head = [cfg.nameLabel,'Holder','Platform','Linked account','Folio no','Frequency','SIP date','SIP amount',
-    'Monthly investment','Invested till FY 2026','Total invested','Fund value as on date','Value as on','Status',
-    'Instalment','Due date','Instalment amount','Instalment status','Paid on'];
+  const head = [cfg.nameLabel,'Holder','Platform','Linked account','Folio no','Frequency','SIP date','SIP amount'].concat(
+    id==='sip' ? [] : ['Monthly investment']).concat(
+    ['Invested till FY 2026','Total invested','Fund value as on date','Value as on','Status',
+    'Instalment','Due date','Instalment amount','Instalment status','Paid on']);
   const rows = [];
   sipAllOf(id).forEach(a => {
-    const base = [a.name||'', a.holder||'', a.platform||'', a.linkedAccount||'', a.folioNo||'', a.frequency||'',
-      a.sipDate||'', has(a.sipAmount)?a.sipAmount:'', (a.perMonth||0)*(a.sipAmount||0), has(a.baseInvested)?a.baseInvested:'',
-      recurringTotal(a), has(a.fundValue)?a.fundValue:'', a.asOn||'', a.status||''];
+    const base = [a.name||'', a.holder||'', a.platform||'', a.linkedAccount||'', a.folioNo||'', a.frequency||''
+      , a.sipDate||'', has(a.sipAmount)?a.sipAmount:''].concat(
+      id==='sip' ? [] : [(a.perMonth||0)*(a.sipAmount||0)]).concat(
+      [has(a.baseInvested)?a.baseInvested:'', recurringTotal(a), has(a.fundValue)?a.fundValue:'', a.asOn||'', a.status||'']);
     const sch = sipSchedule(a, currentFY());
     if(!sch.length) rows.push(base.concat(['','','','','']));
     sch.forEach(r => rows.push(base.concat([r.label, r.due, r.amount, r.paid?'Paid':'Pending', r.paidOn||''])));
@@ -3227,12 +3270,14 @@ const GEN_CFG = {
   },
   nps: {
     title:'NPS', blurb:'National Pension System — grouped by holder, with a monthly contribution schedule.',
-    createLabel:'New NPS account', allowChange:true,
+    createLabel:'New NPS account', allowChange:true, startDateOptional:true,
+    baseInvestedLabel:'Contribution till FY 2026',
     extra:[
       {k:'pran', label:'PRAN', type:'text'},
       {k:'tier', label:'Tier', type:'select', opts:['Tier I','Tier II']},
       {k:'fundManager', label:'Fund manager', type:'text', ph:'HDFC Pension'},
-      {k:'currentValue', label:'Current value (optional)', type:'number', ph:'market value today'}
+      {k:'debitDay', label:'Recurring debit date (day of month)', type:'number', ph:'1, 5, 15…', required:true},
+      {k:'gain', label:'Gain (unrealised)', type:'number', ph:'optional — e.g. 18500'}
     ]
   },
   epf: {
@@ -3280,6 +3325,7 @@ function genPaintBody(id){
   const scoped = st.selHolder ? list.filter(a => a.holder === st.selHolder) : list;
   const fy = currentFY();
   const invested = scoped.reduce((s,a) => s + recurringTotal(a), 0);
+  const gainSum = id==='nps' ? scoped.reduce((s,a) => s + (a.gain||0), 0) : 0;
   let due = 0, pending = 0;
   scoped.forEach(a => recurringSchedule(a, fy).forEach(r => { if(!r.paid){ due += r.amount; pending++; } }));
 
@@ -3288,8 +3334,11 @@ function genPaintBody(id){
     '<div class="eyebrow">'+esc(st.selHolder)+'</div></div>';
   html += (scoped.length ? '<div class="stats-grid">' +
     '<div class="glass stat"><div class="k">Accounts</div><div class="v">'+scoped.length+'</div></div>' +
-    '<div class="glass stat"><div class="k">Invested till FY 2026</div><div class="v">'+inr(scoped.reduce((s,a)=>s+(a.baseInvested||0),0))+'</div></div>' +
-    '<div class="glass stat"><div class="k">Total invested</div><div class="v">'+inr(invested)+'</div><div class="sub">opening + paid instalments</div></div>' +
+    '<div class="glass stat"><div class="k">'+esc(cfg.baseInvestedLabel||'Invested till FY 2026')+'</div><div class="v">'+inr(scoped.reduce((s,a)=>s+(a.baseInvested||0),0))+'</div></div>' +
+    (id==='nps'
+      ? '<div class="glass stat"><div class="k">Your contribution</div><div class="v">'+inr(invested)+'</div><div class="sub">contribution till FY 2026 + paid instalments</div></div>' +
+        '<div class="glass stat"><div class="k">Holding Amount</div><div class="v pos">'+inr(invested+gainSum)+'</div><div class="sub">gain + your contribution</div></div>'
+      : '<div class="glass stat"><div class="k">Total invested</div><div class="v">'+inr(invested)+'</div><div class="sub">opening + paid instalments</div></div>') +
     '<div class="glass stat"><div class="k">Still to pay</div><div class="v">'+inr(due)+'</div><div class="sub">'+pending+' instalment'+(pending===1?'':'s')+' this FY</div></div>' +
   '</div>' : '');
   html += '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="gNew">'+cfg.createLabel+'</button></div>' +
@@ -3324,18 +3373,18 @@ function genPaintForm(id){
   const extraHtml = cfg.extra.map(f => {
     const id2 = 'g_'+f.k;
     if(f.type === 'select') return '<div class="fld"><label for="'+id2+'">'+esc(f.label)+'</label><select id="'+id2+'">'+sel(f.k,f.opts)+'</select></div>';
-    return '<div class="fld"><label for="'+id2+'">'+esc(f.label)+'</label><input type="'+f.type+'" id="'+id2+'"'+(f.type==='number'?' step="any"':'')+' value="'+v(f.k)+'"'+(f.ph?' placeholder="'+esc(f.ph)+'"':'')+'></div>';
+    return '<div class="fld"><label for="'+id2+'">'+esc(f.label)+'</label><input type="'+f.type+'" id="'+id2+'"'+(f.type==='number'?' step="any"':'')+(f.required?' required':'')+' value="'+v(f.k)+'"'+(f.ph?' placeholder="'+esc(f.ph)+'"':'')+'></div>';
   }).join('');
 
   wrap.innerHTML =
     '<form class="glass panel" id="'+id+'Form" autocomplete="off"><h3>'+(st.editing?'Editing account':'New account')+'</h3><div class="grid">' +
       '<div class="fld"><label for="g_holder">Holder name</label><input type="text" id="g_holder" value="'+v('holder')+'" required></div>' +
       '<div class="fld"><label for="g_nominee">Nominee\u2019s name</label><input type="text" id="g_nominee" value="'+v('nominee')+'"></div>' +
-      '<div class="fld"><label for="g_startDate">Start date</label><input type="date" id="g_startDate" value="'+v('startDate')+'" required></div>' +
+      '<div class="fld"><label for="g_startDate">Start date'+(cfg.startDateOptional?' <span style="opacity:.6">(optional)</span>':'')+'</label><input type="date" id="g_startDate" value="'+v('startDate')+'"'+(cfg.startDateOptional?'':' required')+'></div>' +
       extraHtml +
       '<div class="fld"><label for="g_amount">Amount <span style="opacity:.6">(recurring monthly)</span></label><input type="number" id="g_amount" step="any" value="'+v('amount')+'" required></div>' +
-      '<div class="fld"><label for="g_baseInvested">Invested till FY 2026</label><input type="number" id="g_baseInvested" step="any" value="'+v('baseInvested')+'"></div>' +
-      '<div class="fld calc"><label for="g_total">Total invested</label><input type="text" id="g_total" readonly tabindex="-1"></div>' +
+      '<div class="fld"><label for="g_baseInvested">'+esc(cfg.baseInvestedLabel||'Invested till FY 2026')+'</label><input type="number" id="g_baseInvested" step="any" value="'+v('baseInvested')+'"></div>' +
+      '<div class="fld calc"><label for="g_total">'+(id==='nps'?'Your contribution':'Total invested')+'</label><input type="text" id="g_total" readonly tabindex="-1"></div>' +
       (cfg.allowChange ? '<div class="divider"><span>Optional — change in the recurring amount</span><i></i></div>' +
         '<div class="fld"><label for="g_changeAmount">New amount</label><input type="number" id="g_changeAmount" step="any" placeholder="leave blank if unchanged"></div>' +
         '<div class="fld"><label for="g_changeFrom">Effective from</label><input type="date" id="g_changeFrom"></div>' : '') +
@@ -3357,7 +3406,7 @@ function genPaintForm(id){
   $(id+'Form').addEventListener('submit', async e => {
     e.preventDefault();
     const holder = $('g_holder').value.trim(), startDate = $('g_startDate').value;
-    if(!holder || !startDate){ $(id+'Err').textContent = 'Holder name and start date are needed.'; return; }
+    if(!holder || (!cfg.startDateOptional && !startDate)){ $(id+'Err').textContent = 'Holder name and start date are needed.'; return; }
     const changeAmount = cfg.allowChange ? num($('g_changeAmount').value) : null;
     const changeFrom = cfg.allowChange ? $('g_changeFrom').value : '';
     const list = genAll(id);
@@ -3367,16 +3416,17 @@ function genPaintForm(id){
     if(st.editing){
       rec = list.find(x=>x.id===st.editing);
       Object.assign(rec, { holder, nominee:$('g_nominee').value.trim(), startDate, baseInvested:num($('g_baseInvested').value),
-        debitDay: new Date(startDate).getDate(), investType:'Recurring', frequency:'Monthly' }, extraVals);
+        debitDay: startDate ? new Date(startDate).getDate() : (rec.debitDay||1), investType:'Recurring', frequency:'Monthly' }, extraVals);
       const typed = num($('g_amount').value);
       if(has(typed)) rec.amount = typed;
     }else{
       rec = Object.assign({ id:uid(), holder, nominee:$('g_nominee').value.trim(), startDate, amount:num($('g_amount').value),
-        baseInvested:num($('g_baseInvested').value), debitDay: new Date(startDate).getDate(), investType:'Recurring',
+        baseInvested:num($('g_baseInvested').value), debitDay: startDate ? new Date(startDate).getDate() : 1, investType:'Recurring',
         frequency:'Monthly', txns:{}, dateOverrides:{}, rateHistory:[] }, extraVals);
       rec.rateHistory.push({ amount: rec.amount||0, from: rec.startDate });
       list.push(rec);
     }
+    if(!has(rec.debitDay) || isNaN(rec.debitDay)) rec.debitDay = 1;
     if(cfg.allowChange && has(changeAmount) && changeFrom){
       rec.rateHistory = rec.rateHistory || [];
       rec.rateHistory.push({ amount: changeAmount, from: changeFrom });
@@ -3397,6 +3447,8 @@ function genPaintBook(id, scoped, fy){
   book.innerHTML = scoped.slice().reverse().map(a => {
     const total = recurringTotal(a), rows = recurringSchedule(a, fy);
     const paidFy = rows.filter(r=>r.paid).reduce((s,r)=>s+r.amount,0);
+    const gain = id==='nps' ? (a.gain||0) : 0;
+    const holdingAmount = total + gain;
     const sched = rows.map(r => {
       const overdue = !r.paid && r.due < today();
       return '<div class="srow"><span class="m">'+r.label+'</span>' +
@@ -3409,17 +3461,23 @@ function genPaintBook(id, scoped, fy){
             '<button type="button" class="paybtn" data-pay="'+a.id+'|'+r.key+'">Paid</button>') + '</span></div>';
     }).join('');
 
-    const extraCells = cfg.extra.map(f => cell2(f.label, has(a[f.k]) ? (f.type==='number'?inr(a[f.k]):esc(a[f.k])) : '—')).join('');
+    const extraCells = cfg.extra.filter(f => f.k !== 'debitDay').map(f => cell2(f.label, has(a[f.k]) ? (f.type==='number'?inr(a[f.k]):esc(a[f.k])) : '—')).join('');
+    const scheduleCell = id==='nps' ? cell2('Recurring schedule', has(a.debitDay) ? ordinal(a.debitDay)+' of every month' : '—') : '';
 
     return '<article class="glass acct"><div class="edge" style="background:var(--gain)"></div>' +
       '<div class="tkt-top"><div><div class="instr">'+esc(a.holder||'Account')+'</div>' +
       '<div class="chips">'+(a.nominee?'<span class="chip">Nominee: '+esc(a.nominee)+'</span>':'')+'<span class="chip st-open">Active</span></div></div>' +
-      '<div class="pnl"><div class="big">'+inr(total)+'</div><div class="roi">total invested · '+inr(paidFy)+' this FY</div></div></div>' +
+      (id==='nps'
+        ? '<div class="pnl"><div class="big">'+inr(holdingAmount)+'</div><div class="roi">your contribution '+inr(total)+' + gain '+inr(gain)+'</div></div></div>'
+        : '<div class="pnl"><div class="big">'+inr(total)+'</div><div class="roi">total invested · '+inr(paidFy)+' this FY</div></div></div>') +
       '<div class="cells">' +
         cell2('Holder name', esc(a.holder||'—')) + cell2('Nominee\u2019s name', esc(a.nominee||'—')) +
-        cell2('Start date', fmtDate(a.startDate)) + extraCells +
-        cell2('Amount', has(a.amount)?inr(a.amount):'—') + cell2('Invested till FY 2026', has(a.baseInvested)?inr(a.baseInvested):'—') +
-        cell2('Total invested', inr(total)) + (cfg.allowChange ? cell2('Amount change', amountChangeLine(a)) : '') +
+        cell2('Start date', a.startDate ? fmtDate(a.startDate) : '—') + scheduleCell + extraCells +
+        cell2('Amount', has(a.amount)?inr(a.amount):'—') + cell2(cfg.baseInvestedLabel||'Invested till FY 2026', has(a.baseInvested)?inr(a.baseInvested):'—') +
+        (id==='nps'
+          ? cell2('Your contribution', inr(total)) + cell2('Holding Amount', inr(holdingAmount))
+          : cell2('Total invested', inr(total))) +
+        (cfg.allowChange ? cell2('Amount change', amountChangeLine(a)) : '') +
       '</div>' +
       '<div class="sched"><h4>Schedule · '+fyLabel(fy)+'</h4>' +
       '<p class="note">Dates skip Sundays, 2nd/4th Saturdays and national holidays — adjust any date before marking it Paid.</p>' +
@@ -3434,12 +3492,17 @@ function genPaintBook(id, scoped, fy){
 function genRecCsv(id){
   const cfg = GEN_CFG[id];
   const head = ['Holder name','Nominee\u2019s name','Start date'].concat(cfg.extra.map(f=>f.label))
-    .concat(['Amount','Invested till FY 2026','Total invested', cfg.allowChange?'Amount changes':null,
+    .concat([id==='nps' ? 'Recurring schedule' : null, 'Amount', cfg.baseInvestedLabel||'Invested till FY 2026',
+      id==='nps' ? 'Your contribution' : 'Total invested', id==='nps' ? 'Holding Amount' : null,
+      cfg.allowChange?'Amount changes':null,
       'Instalment','Due date','Instalment amount','Instalment status','Paid on']).filter(Boolean);
   const rows = [];
   genAll(id).forEach(a => {
-    let base = [a.holder||'', a.nominee||'', a.startDate||''].concat(cfg.extra.map(f=>has(a[f.k])?a[f.k]:''))
-      .concat([has(a.amount)?a.amount:'', has(a.baseInvested)?a.baseInvested:'', recurringTotal(a)]);
+    const total = recurringTotal(a), gain = id==='nps' ? (a.gain||0) : 0;
+    let base = [a.holder||'', a.nominee||'', a.startDate||''].concat(cfg.extra.map(f=>has(a[f.k])?a[f.k]:''));
+    if(id==='nps') base = base.concat([has(a.debitDay) ? ordinal(a.debitDay)+' of every month' : '']);
+    base = base.concat([has(a.amount)?a.amount:'', has(a.baseInvested)?a.baseInvested:'', total]);
+    if(id==='nps') base = base.concat([total+gain]);
     if(cfg.allowChange) base = base.concat([amountChangeLine(a)]);
     const sch = recurringSchedule(a, currentFY());
     if(!sch.length) rows.push(base.concat(['','','','','']));
