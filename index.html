@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -253,7 +254,13 @@
 <div class="sky"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <div class="grain"></div>
 
-<div class="app">
+<div id="signinGate" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#0B1026;color:#EDF1FA;font-family:'Outfit',sans-serif;">
+  <div style="font-size:20px;font-weight:600;">Investment Tracker</div>
+  <div id="signinMsg" style="opacity:.7;font-size:14px;">Sign in with the Google account that owns your data sheet.</div>
+  <button id="signinBtn" style="padding:12px 22px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:#8B7CFF;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">Sign in with Google</button>
+</div>
+
+<div class="app" style="display:none;" id="appShell">
   <aside class="glass rail">
     <div class="brand">
       <div class="eyebrow">Portfolio · V7</div>
@@ -424,19 +431,68 @@ MODULES.sort((a,b) => a.name.localeCompare(b.name));
 const MOD = id => MODULES.find(m => m.id === id);
 
 /* ============================================================
-   STORAGE
+   STORAGE — synced to a Google Sheet in your own Drive
    ============================================================ */
+const GOOGLE_CLIENT_ID = '293064896910-pqv31uuomo9mu7temn2cm27p0spi0k5v.apps.googleusercontent.com';
+const SHEET_ID = '13zGGFWOYq_PFVvbX-Vmi4fQkDDWb7zhKL3Yqtvb_tlE';
+const SHEET_RANGE = 'Sheet1!A1';
+
+let accessToken = null;
+let tokenClient = null;
+
+function sheetsUrl(){
+  return 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
+         '/values/' + encodeURIComponent(SHEET_RANGE);
+}
+
+function signIn(){
+  return new Promise((resolve, reject) => {
+    if(!window.google || !google.accounts){ reject(new Error('Google sign-in did not load. Check your internet connection and reload.')); return; }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: (resp) => {
+        if(resp.error){ reject(resp); return; }
+        accessToken = resp.access_token;
+        resolve(accessToken);
+      }
+    });
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
 async function loadDB(){
   try{
-    const r = await window.storage.get(DB_KEY);
-    if(r && r.value) DB = Object.assign({capital:null, records:{}}, JSON.parse(r.value));
-  }catch(e){ /* first run */ }
+    const res = await fetch(sheetsUrl(), {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    if(res.status === 401){ accessToken = null; throw new Error('auth-expired'); }
+    const data = await res.json();
+    const cell = data.values && data.values[0] && data.values[0][0];
+    if(cell) DB = Object.assign({capital:null, records:{}}, JSON.parse(cell));
+  }catch(e){ /* first run, or empty sheet — start fresh */ }
   if(!DB.records) DB.records = {};
 }
-let saveTimer = null, saveNote = 'Saved on this device';
+
+let saveTimer = null, saveNote = 'Saved to Google Sheet';
 async function saveDB(){
-  try{ await window.storage.set(DB_KEY, JSON.stringify(DB)); saveNote = 'Saved on this device'; }
-  catch(e){ saveNote = 'Not saved — this session only'; }
+  try{
+    if(!accessToken) await signIn();
+    const res = await fetch(sheetsUrl() + '?valueInputOption=RAW', {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: [[ JSON.stringify(DB) ]] })
+    });
+    if(res.status === 401){
+      accessToken = null;
+      await signIn();
+      return saveDB();
+    }
+    saveNote = res.ok ? 'Saved to Google Sheet' : 'Not saved — check connection';
+  }catch(e){ saveNote = 'Not saved — check connection'; }
   const el = $('saveState'); if(el) el.textContent = saveNote;
 }
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveDB, 350); }
@@ -3415,11 +3471,22 @@ $('backupBtn').addEventListener('click', () => {
   a.download = 'investment-v7-backup.json'; a.click();
 });
 
-(async () => {
-  await loadDB();
-  if(DB.theme === 'dawn'){ document.body.classList.add('dawn'); $('themeBtn').textContent = 'Night'; }
-  render();
-})();
+$('signinBtn').addEventListener('click', async () => {
+  $('signinMsg').textContent = 'Opening Google sign-in…';
+  $('signinBtn').disabled = true;
+  try{
+    await signIn();
+    $('signinMsg').textContent = 'Loading your data…';
+    await loadDB();
+    if(DB.theme === 'dawn'){ document.body.classList.add('dawn'); $('themeBtn').textContent = 'Night'; }
+    $('signinGate').style.display = 'none';
+    $('appShell').style.display = '';
+    render();
+  }catch(e){
+    $('signinMsg').textContent = 'Sign-in failed. Please try again.';
+    $('signinBtn').disabled = false;
+  }
+});
 </script>
 </body>
 </html>
