@@ -59,6 +59,12 @@
   .brand h1{margin:3px 0 0;font-size:21px;font-weight:600;letter-spacing:-.02em}
   .navgroup{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);
     padding:12px 8px 6px}
+  .navfolder{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;
+    background:transparent;border:none;color:var(--ink);font-family:var(--sans);font-size:13.5px;font-weight:600;
+    padding:10px 8px;border-radius:10px;cursor:pointer;margin-top:6px}
+  .navfolder:hover{background:var(--glass-hi)}
+  .navfolder .chev{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .navfolder .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-left:auto;margin-right:4px}
   .navbtn{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;
     background:transparent;border:none;color:var(--muted);font-family:var(--sans);font-size:13.5px;
     padding:8px 10px;border-radius:10px;cursor:pointer}
@@ -282,6 +288,7 @@
 const DB_KEY = 'investment:v1';
 let DB = { capital:null, records:{} };
 let route = 'home', tab = 'all', editingId = null;
+let navFolderState = { Investment:true, Credentials:true };
 const $ = id => document.getElementById(id);
 
 /* ---------- helpers ---------- */
@@ -427,6 +434,11 @@ const MODULES = [
     id:'ssy', name:'SSY', group:'Debt', blurb:'Sukanya Samriddhi account for the girl child — one account, contribution schedule and maturity.', custom:'ssy'
   }
 ];
+MODULES.forEach(m => { m.folder = 'Investment'; });
+MODULES.push(
+  { id:'credentials', name:'Credentials', group:'Vault', folder:'Credentials',
+    blurb:'Store logins for your investment platforms — broker, bank, demat, fund houses — with a password-strength check.', custom:'credentials' }
+);
 MODULES.sort((a,b) => a.name.localeCompare(b.name));
 const MOD = id => MODULES.find(m => m.id === id);
 
@@ -503,20 +515,37 @@ const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
    NAV + ROUTER
    ============================================================ */
 function buildNav(){
-  const groups = {};
-  MODULES.forEach(m => { (groups[m.group] = groups[m.group] || []).push(m); });
+  const folders = {};
+  MODULES.forEach(m => { (folders[m.folder] = folders[m.folder] || []).push(m); });
   let html = '<button class="navbtn" data-go="home"' + (route==='home'?' aria-current="true"':'') + '><span>Overview</span></button>';
-  Object.keys(groups).sort().forEach(g => {
-    html += '<div class="navgroup">'+g+'</div>';
-    groups[g].forEach(m => {
-      const n = (DB.records[m.id]||[]).length;
-      html += '<button class="navbtn" data-go="'+m.id+'"'+(route===m.id?' aria-current="true"':'')+'>' +
-              '<span>'+esc(m.name)+'</span><span class="n">'+(n||'')+'</span></button>';
+  const order = ['Investment','Credentials'];
+  const keys = Object.keys(folders).sort((a,b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+  keys.forEach(f => {
+    const open = navFolderState[f] !== false;
+    const count = folders[f].reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
+    html += '<button type="button" class="navfolder" data-folder="'+esc(f)+'" aria-expanded="'+open+'">' +
+      '<span>'+(f==='Credentials'?'\uD83D\uDD12 ':'\uD83D\uDCC1 ')+esc(f)+'</span>' +
+      '<span class="n">'+(count||'')+'</span><span class="chev">'+(open?'\u25BE':'\u25B8')+'</span></button>';
+    if(!open) return;
+    const groups = {};
+    folders[f].forEach(m => { (groups[m.group] = groups[m.group] || []).push(m); });
+    Object.keys(groups).sort().forEach(g => {
+      html += '<div class="navgroup">'+esc(g)+'</div>';
+      groups[g].forEach(m => {
+        const n = (DB.records[m.id]||[]).length;
+        html += '<button class="navbtn" data-go="'+m.id+'"'+(route===m.id?' aria-current="true"':'')+'>' +
+                '<span>'+esc(m.name)+'</span><span class="n">'+(n||'')+'</span></button>';
+      });
     });
   });
   $('nav').innerHTML = html;
 }
 document.addEventListener('click', e => {
+  const fb = e.target.closest('[data-folder]');
+  if(fb){ const f = fb.dataset.folder; navFolderState[f] = !(navFolderState[f] !== false); buildNav(); return; }
   const b = e.target.closest('[data-go]');
   if(!b) return;
   route = b.dataset.go; tab = 'all'; editingId = null;
@@ -541,6 +570,7 @@ function render(){
   if(m.custom === 'apy') return renderGenRecurring('apy');
   if(m.custom === 'nps') return renderGenRecurring('nps');
   if(m.custom === 'epf') return renderGenRecurring('epf');
+  if(m.custom === 'credentials') return renderCredentials();
   renderModule(m);
 }
 
@@ -549,48 +579,63 @@ function render(){
    ============================================================ */
 function renderHome(){
   const total = MODULES.reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
-  let tiles = '';
-  MODULES.forEach(m => {
-    const list = DB.records[m.id] || [];
-    let headline = '—';
-    if(m.custom === 'fno'){
-      const closed = list.filter(t => has(t.exitPrice));
-      const pnl = closed.reduce((s,t) => s + fnoDerive(t).profit, 0);
-      headline = list.length ? (pnl>=0?'+':'')+inr(pnl)+' realised' : '—';
-    }else if(m.custom === 'ppf'){
-      headline = list.length ? inr(list.reduce((s,a)=>s+recurringTotal(a),0))+' invested' : '—';
-    }else if(m.custom === 'ssy'){
-      headline = list.length ? inr(recurringTotal(list[0]))+' invested' : '—';
-    }else if(m.custom === 'bonds'){
-      headline = list.length ? inr(list.reduce((s,b)=>s+(b.buyPrice||0)*(b.qty||0),0))+' invested' : '—';
-    }else if(m.custom === 'fd'){
-      headline = list.length ? inr(list.filter(x=>!x.closed).reduce((s,x)=>s+fdMaturityOf(x),0))+' at maturity' : '—';
-    }else if(m.custom === 'rd'){
-      headline = list.length ? inr(list.filter(x=>!x.closed).reduce((s,x)=>s+rdMaturityOf(x),0))+' at maturity' : '—';
-    }else if(m.custom === 'p2p'){
-      const out = list.reduce((s,l)=>s+p2pOutstanding(l),0);
-      headline = list.length ? inr(out)+' outstanding' : '—';
-    }else if(m.custom === 'insurance'){
-      headline = list.length ? inr(list.reduce((s,p)=>s+recurringTotal(p),0))+' invested' : '—';
-    }else if(m.custom === 'sip' || m.custom === 'etf'){
-      headline = list.length ? inr(list.reduce((s,a)=>s+recurringTotal(a),0))+' invested' : '—';
-    }else if(m.custom === 'apy' || m.custom === 'nps' || m.custom === 'epf'){
-      headline = list.length ? inr(list.reduce((s,a)=>s+recurringTotal(a),0))+' invested' : '—';
-    }else if(list.length){
-      const s = m.stats(list);
-      headline = (s[2] || s[1] || s[0]).v;
-    }
-    tiles += '<button class="glass tile" data-go="'+m.id+'">' +
-      '<h3>'+esc(m.name)+'</h3>' +
-      '<div class="cnt">'+(list.length ? list.length+' entr'+(list.length===1?'y':'ies') : 'empty')+'</div>' +
-      '<div class="amt">'+headline+'</div></button>';
+  const folders = {};
+  MODULES.forEach(m => { (folders[m.folder] = folders[m.folder] || []).push(m); });
+  const order = ['Investment','Credentials'];
+  const keys = Object.keys(folders).sort((a,b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+
+  let sections = '';
+  keys.forEach(f => {
+    let tiles = '';
+    folders[f].forEach(m => {
+      const list = DB.records[m.id] || [];
+      let headline = '—';
+      if(m.custom === 'fno'){
+        const closed = list.filter(t => has(t.exitPrice));
+        const pnl = closed.reduce((s,t) => s + fnoDerive(t).profit, 0);
+        headline = list.length ? (pnl>=0?'+':'')+inr(pnl)+' realised' : '—';
+      }else if(m.custom === 'ppf'){
+        headline = list.length ? inr(list.reduce((s,a)=>s+recurringTotal(a),0))+' invested' : '—';
+      }else if(m.custom === 'ssy'){
+        headline = list.length ? inr(recurringTotal(list[0]))+' invested' : '—';
+      }else if(m.custom === 'bonds'){
+        headline = list.length ? inr(list.reduce((s,b)=>s+(b.buyPrice||0)*(b.qty||0),0))+' invested' : '—';
+      }else if(m.custom === 'fd'){
+        headline = list.length ? inr(list.filter(x=>!x.closed).reduce((s,x)=>s+fdMaturityOf(x),0))+' at maturity' : '—';
+      }else if(m.custom === 'rd'){
+        headline = list.length ? inr(list.filter(x=>!x.closed).reduce((s,x)=>s+rdMaturityOf(x),0))+' at maturity' : '—';
+      }else if(m.custom === 'p2p'){
+        const out = list.reduce((s,l)=>s+p2pOutstanding(l),0);
+        headline = list.length ? inr(out)+' outstanding' : '—';
+      }else if(m.custom === 'insurance'){
+        headline = list.length ? inr(list.reduce((s,p)=>s+recurringTotal(p),0))+' invested' : '—';
+      }else if(m.custom === 'sip' || m.custom === 'etf'){
+        headline = list.length ? inr(list.reduce((s,a)=>s+recurringTotal(a),0))+' invested' : '—';
+      }else if(m.custom === 'apy' || m.custom === 'nps' || m.custom === 'epf'){
+        headline = list.length ? inr(list.reduce((s,a)=>s+recurringTotal(a),0))+' invested' : '—';
+      }else if(m.custom === 'credentials'){
+        headline = list.length ? list.length+' saved' : '—';
+      }else if(list.length){
+        const s = m.stats(list);
+        headline = (s[2] || s[1] || s[0]).v;
+      }
+      tiles += '<button class="glass tile" data-go="'+m.id+'">' +
+        '<h3>'+esc(m.name)+'</h3>' +
+        '<div class="cnt">'+(list.length ? list.length+' entr'+(list.length===1?'y':'ies') : 'empty')+'</div>' +
+        '<div class="amt">'+headline+'</div></button>';
+    });
+    sections += '<div class="navgroup" style="padding-left:2px">'+(f==='Credentials'?'\uD83D\uDD12 ':'\uD83D\uDCC1 ')+esc(f)+'</div>' +
+      '<div class="tiles">'+tiles+'</div>';
   });
 
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Overview</div><h2>All investments</h2>' +
-    '<p>Sixteen modules, one book. Pick a module to add entries — every calculation runs on the numbers you type.</p></div>' +
+    '<p>'+MODULES.length+' modules, one book. Pick a module to add entries — every calculation runs on the numbers you type.</p></div>' +
     '<div class="eyebrow">'+total+' entries tracked</div></div>' +
-    '<div class="tiles">'+tiles+'</div>' +
+    sections +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
     '<span><button type="button" id="exportAll">Export everything</button></span></div>';
 
@@ -806,6 +851,7 @@ function exportModule(m){ download('investment-'+m.id+'.csv', csvOf(m)); }
 function exportAll(){
   let rows = [];
   MODULES.forEach(m => {
+    if(m.id === 'credentials') return;
     const list = DB.records[m.id] || []; if(!list.length) return;
     rows.push([m.name]);
     rows = rows.concat(
@@ -3533,6 +3579,198 @@ $('backupBtn').addEventListener('click', () => {
   a.href = URL.createObjectURL(new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'}));
   a.download = 'investment-v7-backup.json'; a.click();
 });
+
+/* ============================================================
+   CREDENTIALS — a simple vault for logins to your investment
+   platforms (or anything else), with a client-side strength check.
+   Nothing here is sent anywhere except your own Google Sheet.
+   ============================================================ */
+const credAll = () => recs('credentials');
+let credEditing = null, credFormOpen = false, credShow = {};
+const CRED_CATS = ['Broker / Demat','Bank','Mutual Fund / AMC','Insurance','Government / Tax','Email','Other'];
+
+const WEAK_PASSWORDS = new Set(['password','123456','123456789','qwerty','111111','12345678','abc123',
+  'password1','letmein','admin','welcome','iloveyou','monkey','dragon','football','1234567','123123',
+  '000000','123456789','qwerty123','1q2w3e4r']);
+
+function analyzePassword(pw){
+  if(!pw) return {score:0, label:'—', color:'var(--muted)'};
+  const len = pw.length;
+  let score = Math.min(len,16) * 4;
+  const hasLower = /[a-z]/.test(pw), hasUpper = /[A-Z]/.test(pw), hasDigit = /\d/.test(pw), hasSymbol = /[^A-Za-z0-9]/.test(pw);
+  score += [hasLower,hasUpper,hasDigit,hasSymbol].filter(Boolean).length * 9;
+  if(len < 8) score = Math.min(score, 30);
+  if(WEAK_PASSWORDS.has(pw.toLowerCase())) score = 5;
+  if(/^(.)\1+$/.test(pw)) score = Math.min(score, 10);
+  if(/0123|1234|2345|3456|4567|5678|6789|abcd|bcde|cdef|qwer|asdf|zxcv/i.test(pw)) score = Math.max(score-20, 5);
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  let label, color;
+  if(score < 30){ label='Weak'; color='var(--loss)'; }
+  else if(score < 55){ label='Fair'; color='var(--open)'; }
+  else if(score < 80){ label='Good'; color='var(--accent)'; }
+  else { label='Strong'; color='var(--gain)'; }
+  return {score, label, color};
+}
+function generatePassword(len){
+  len = len || 16;
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*()-_=+';
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, n => chars[n % chars.length]).join('');
+}
+
+function renderCredentials(){
+  $('main').innerHTML =
+    '<div class="phead"><div><div class="eyebrow">Credentials · module</div><h2>Credentials</h2>' +
+    '<p>Logins for your investment platforms, kept alongside the numbers. Stored as plain text in your Google Sheet — '+
+    'anyone signed into this Google account (or with edit access to the Sheet) can read them, so treat that account\u2019s '+
+    'security as the security of this vault.</p></div><div class="eyebrow" id="count"></div></div>' +
+    '<div id="credBody"></div>';
+  credPaintBody();
+}
+
+function credPaintBody(){
+  const list = credAll();
+  const body = $('credBody');
+  $('count').textContent = list.length + (list.length===1?' entry':' entries');
+
+  let html = '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="credNew">' +
+    (list.length ? 'Add another login' : 'Add your first login') + '</button></div>' +
+    '<div id="credFormWrap"></div><div id="credBook"></div>' +
+    '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
+    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+
+  body.innerHTML = html;
+  $('credNew').addEventListener('click', () => { credEditing = null; credFormOpen = true; credPaintForm(); });
+  $('exportBtn').addEventListener('click', () => {
+    if(!list.length) return;
+    if(!confirm('This CSV will contain your passwords in plain text. Only save it somewhere private. Continue?')) return;
+    download('credentials.csv', credentialsCsv());
+  });
+  $('clearBtn').addEventListener('click', async () => {
+    if(!list.length) return;
+    if(!confirm('Delete every saved login? This cannot be undone.')) return;
+    DB.records.credentials = []; await saveDB(); render();
+  });
+
+  credPaintForm();
+  credPaintBook(list);
+}
+
+function credPaintForm(){
+  const wrap = $('credFormWrap'); if(!wrap) return;
+  if(!credFormOpen){ wrap.innerHTML = ''; return; }
+  const a = credEditing ? credAll().find(x=>x.id===credEditing) || {} : {};
+  const v = k => has(a[k]) ? esc(a[k]) : '';
+  const sel = (k, opts) => opts.map(o => '<option'+(a[k]===o?' selected':'')+'>'+o+'</option>').join('');
+
+  wrap.innerHTML =
+    '<form class="glass panel" id="credForm" autocomplete="off"><h3>'+(credEditing?'Editing login':'New login')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="c_service">Service / website</label><input type="text" id="c_service" value="'+v('service')+'" placeholder="Zerodha Kite" required></div>' +
+      '<div class="fld"><label for="c_category">Category</label><select id="c_category">'+sel('category',CRED_CATS)+'</select></div>' +
+      '<div class="fld"><label for="c_url">Website URL</label><input type="text" id="c_url" value="'+v('url')+'" placeholder="https://kite.zerodha.com"></div>' +
+      '<div class="fld"><label for="c_username">Username / email</label><input type="text" id="c_username" value="'+v('username')+'" required></div>' +
+      '<div class="fld"><label for="c_password">Password</label>' +
+        '<div style="display:flex;gap:6px">' +
+        '<input type="password" id="c_password" value="'+v('password')+'" required autocomplete="new-password" style="flex:1">' +
+        '<button type="button" class="btn-ghost" id="c_toggle" style="padding:0 12px">Show</button>' +
+        '<button type="button" class="btn-ghost" id="c_gen" style="padding:0 12px">Generate</button></div></div>' +
+      '<div class="fld"><label>Strength</label><div style="height:8px;border-radius:99px;background:var(--glass-hi);overflow:hidden">' +
+        '<div id="c_bar" style="height:100%;width:0%;border-radius:99px;transition:width .2s"></div></div>' +
+        '<div class="sub" id="c_label" style="margin-top:4px">Type a password to check</div></div>' +
+      '<div class="fld" style="grid-column:1/-1"><label for="c_notes">Notes <span style="opacity:.6">(2FA hints, security questions, etc.)</span></label>' +
+        '<textarea id="c_notes" rows="2" style="width:100%;resize:vertical">'+v('notes')+'</textarea></div>' +
+      '<div class="err" id="credErr"></div>' +
+      '<div class="actions"><button type="submit" class="btn-primary">'+(credEditing?'Save changes':'Save login')+'</button>' +
+      '<button type="button" class="btn-ghost" id="credCancel">Cancel</button></div>' +
+    '</div></form>';
+
+  const pwEl = $('c_password');
+  const refreshMeter = () => {
+    const r = analyzePassword(pwEl.value);
+    $('c_bar').style.width = r.score+'%'; $('c_bar').style.background = r.color;
+    $('c_label').textContent = pwEl.value ? r.label+' password' : 'Type a password to check';
+    $('c_label').style.color = r.color;
+  };
+  pwEl.addEventListener('input', refreshMeter);
+  refreshMeter();
+  $('c_toggle').addEventListener('click', () => {
+    const show = pwEl.type === 'password';
+    pwEl.type = show ? 'text' : 'password';
+    $('c_toggle').textContent = show ? 'Hide' : 'Show';
+  });
+  $('c_gen').addEventListener('click', () => { pwEl.type = 'text'; $('c_toggle').textContent = 'Hide'; pwEl.value = generatePassword(16); refreshMeter(); });
+
+  $('credCancel').addEventListener('click', () => { credFormOpen=false; credEditing=null; credPaintForm(); });
+  $('credForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const service = $('c_service').value.trim(), username = $('c_username').value.trim(), password = $('c_password').value;
+    if(!service || !username || !password){ $('credErr').textContent = 'Service, username and password are needed.'; return; }
+    const rec = { service, category:$('c_category').value, url:$('c_url').value.trim(), username, password,
+      notes:$('c_notes').value.trim(), updatedOn: today() };
+    const list = credAll();
+    if(credEditing){ const i = list.findIndex(x=>x.id===credEditing); list[i] = Object.assign({}, list[i], rec); }
+    else { rec.id = uid(); list.push(rec); }
+    credFormOpen = false; credEditing = null;
+    await saveDB(); render();
+  });
+  $('credForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function credPaintBook(list){
+  const book = $('credBook'); if(!book) return;
+  if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No logins saved yet</strong>Use the button above to add your first one.</div>'; return; }
+  const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
+
+  book.innerHTML = list.slice().reverse().map(a => {
+    const shown = !!credShow[a.id];
+    const strength = analyzePassword(a.password);
+    return '<article class="glass acct"><div class="edge" style="background:'+strength.color+'"></div>' +
+      '<div class="tkt-top"><div><div class="instr">'+esc(a.service||'Login')+'</div>' +
+      '<div class="chips"><span class="chip">'+esc(a.category||'Other')+'</span>' +
+      '<span class="chip" style="color:'+strength.color+'">'+strength.label+'</span></div></div>' +
+      '<div class="pnl"><div class="roi">updated '+fmtDate(a.updatedOn)+'</div></div></div>' +
+      '<div class="cells">' +
+        cell2('Username / email', esc(a.username||'—')) +
+        cell2('Website', a.url ? '<a href="'+esc(a.url)+'" target="_blank" rel="noopener">'+esc(a.url)+'</a>' : '—') +
+        '<div><div class="k">Password</div><div class="v" style="display:flex;align-items:center;gap:8px">' +
+          '<span style="font-family:var(--mono)" data-pwtext="'+a.id+'">'+(shown ? esc(a.password) : '•'.repeat(Math.min(a.password.length,14))) +'</span>' +
+          '<button type="button" class="undo" data-toggle="'+a.id+'">'+(shown?'Hide':'Show')+'</button>' +
+          '<button type="button" class="undo" data-copy="'+a.id+'">Copy</button></div></div>' +
+        cell2('Notes', esc(a.notes||'—')) +
+      '</div>' +
+      '<div class="rowacts"><button type="button" data-edit="'+a.id+'">Edit login</button>' +
+      '<button type="button" class="del" data-del="'+a.id+'">Delete</button></div></article>';
+  }).join('');
+
+  book.onclick = async e => {
+    const t = e.target.closest('button'); if(!t) return;
+    const list2 = credAll();
+    if(t.dataset.toggle){
+      credShow[t.dataset.toggle] = !credShow[t.dataset.toggle];
+      credPaintBook(list2);
+    }else if(t.dataset.copy){
+      const rec = list2.find(x=>x.id===t.dataset.copy);
+      if(rec){
+        try{ await navigator.clipboard.writeText(rec.password); t.textContent = 'Copied!'; setTimeout(()=>{ t.textContent='Copy'; }, 1200); }
+        catch(err){ t.textContent = 'Copy failed'; setTimeout(()=>{ t.textContent='Copy'; }, 1200); }
+      }
+    }else if(t.dataset.edit){
+      credEditing = t.dataset.edit; credFormOpen = true; credPaintForm();
+    }else if(t.dataset.del){
+      if(!confirm('Delete this login? This cannot be undone.')) return;
+      DB.records.credentials = list2.filter(x=>x.id!==t.dataset.del);
+      await saveDB(); credPaintBody();
+    }
+  };
+}
+
+function credentialsCsv(){
+  const head = ['Service','Category','URL','Username','Password','Strength','Notes','Updated on'];
+  const rows = credAll().map(a => [a.service||'', a.category||'', a.url||'', a.username||'', a.password||'',
+    analyzePassword(a.password).label, a.notes||'', a.updatedOn||'']);
+  return [head, ...rows];
+}
 
 $('signinBtn').addEventListener('click', async () => {
   $('signinMsg').textContent = 'Opening Google sign-in…';
