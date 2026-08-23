@@ -577,6 +577,78 @@ function render(){
 /* ============================================================
    HOME
    ============================================================ */
+function fyBounds(fy){ return { start: fy+'-04-01', end: (fy+1)+'-03-31' }; }
+function inFY(dateStr, fy){
+  if(!dateStr) return false;
+  const {start,end} = fyBounds(fy);
+  return dateStr >= start && dateStr <= end;
+}
+function chitPaidInFY(r, fy){
+  if(!r.startDate || !r.paidMonths) return 0;
+  const {start,end} = fyBounds(fy);
+  let count = 0;
+  for(let i=0;i<Math.round(r.paidMonths);i++){
+    const d = new Date(r.startDate+'T00:00:00'); d.setMonth(d.getMonth()+i);
+    const ds = d.toISOString().slice(0,10);
+    if(ds >= start && ds <= end) count++;
+  }
+  return count * (r.subscription||0);
+}
+/* Dashboard summary: total ever invested, and total invested within the
+   current financial year — every module folds in here, including every
+   Insurance policy type (Health, Term and the rest), since a premium
+   paid is money committed just like a contribution. */
+function investedTotals(){
+  const fy = currentFY();
+  let allTime = 0, thisFY = 0;
+  MODULES.forEach(m => {
+    if(m.id === 'credentials') return;
+    const list = DB.records[m.id] || [];
+    if(!list.length) return;
+    if(['ppf','ssy','sip','etf','apy','nps','epf','insurance'].includes(m.id)){
+      list.forEach(a => {
+        allTime += recurringTotal(a);
+        thisFY += recurringSchedule(a, fy).filter(r=>r.paid).reduce((s,r)=>s+r.amount,0);
+      });
+    }else if(m.id === 'bonds'){
+      list.forEach(b => {
+        const amt = (b.buyPrice||0)*(b.qty||0);
+        allTime += amt;
+        if(inFY(b.purchaseDate, fy)) thisFY += amt;
+      });
+    }else if(m.id === 'fd' || m.id === 'rd'){
+      list.forEach(x => {
+        const amt = x.amount||0;
+        allTime += amt;
+        if(inFY(x.openDate, fy)) thisFY += amt;
+      });
+    }else if(m.id === 'p2p'){
+      list.forEach(l => {
+        const amt = l.amount||0;
+        allTime += amt;
+        if(inFY(l.lendDate, fy)) thisFY += amt;
+      });
+    }else if(m.id === 'equity' || m.id === 'ipo'){
+      list.forEach(r => {
+        const amt = (r.buyPrice||0)*(r.buyQty||0);
+        allTime += amt;
+        if(inFY(r.buyDate, fy)) thisFY += amt;
+      });
+    }else if(m.id === 'chit'){
+      list.forEach(r => {
+        allTime += (r.subscription||0)*(r.paidMonths||0);
+        thisFY += chitPaidInFY(r, fy);
+      });
+    }else if(m.id === 'fno'){
+      list.forEach(t => {
+        if(!has(t.exitPrice)) allTime += (t.margin||0);
+        if(inFY(t.entryDate, fy)) thisFY += (t.margin||0);
+      });
+    }
+  });
+  return { allTime, thisFY, fy };
+}
+
 function renderHome(){
   const total = MODULES.reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
   const folders = {};
@@ -631,10 +703,18 @@ function renderHome(){
       '<div class="tiles">'+tiles+'</div>';
   });
 
+  const inv = investedTotals();
+
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Overview</div><h2>All investments</h2>' +
     '<p>'+MODULES.length+' modules, one book. Pick a module to add entries — every calculation runs on the numbers you type.</p></div>' +
     '<div class="eyebrow">'+total+' entries tracked</div></div>' +
+    '<div class="stats-grid">' +
+      '<div class="glass stat"><div class="k">Total Invested</div><div class="v">'+inr(inv.allTime)+'</div>' +
+        '<div class="sub">across every module, including all Insurance (Health, Term &amp; others)</div></div>' +
+      '<div class="glass stat"><div class="k">Total Invested — '+fyLabel(inv.fy)+'</div><div class="v pos">'+inr(inv.thisFY)+'</div>' +
+        '<div class="sub">this financial year only, including all Insurance premiums</div></div>' +
+    '</div>' +
     sections +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
     '<span><button type="button" id="exportAll">Export everything</button></span></div>';
