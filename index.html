@@ -426,7 +426,14 @@ const MODULES = [
   {
     id:'epf', name:'EPF', group:'Retirement', blurb:'Provident fund — grouped by holder, monthly contribution schedule.', custom:'epf'
   },
-  tradedSecurity('equity','Equity Stocks','Direct stock positions, open and closed.','Stock'),
+  {
+    id:'equity', name:'Equity Stocks', group:'Market',
+    blurb:'Stock holdings as a buy/sell ledger — add to a position over time, sell partially or fully, weighted-average cost.', custom:'equity'
+  },
+  {
+    id:'maturity', name:'Maturity Tracker', group:'Planning',
+    blurb:'Every FD, RD, Bond, PPF and SSY maturity date in one sorted list, plus any other maturity investment you add by hand.', custom:'maturity'
+  },
   {
     id:'etf', name:'ETF', group:'Market', blurb:'ETF held as recurring SIP legs — folio-wise schedule and investment.', custom:'etf'
   },
@@ -589,6 +596,8 @@ function render(){
   if(!m) return renderHome();
   if(m.custom === 'fno') return renderFno();
   if(m.custom === 'crypto') return renderCrypto();
+  if(m.custom === 'equity') return renderEquity();
+  if(m.custom === 'maturity') return renderMaturity();
   if(m.custom === 'ppf') return renderPpf();
   if(m.custom === 'ssy') return renderSsy();
   if(m.custom === 'bonds') return renderBonds();
@@ -651,16 +660,26 @@ function investedTotals(){
         allTime += amt;
         if(inFY(l.lendDate, fy)) thisFY += amt;
       });
-    }else if(m.id === 'equity' || m.id === 'ipo'){
+    }else if(m.id === 'ipo'){
       list.forEach(r => {
         const amt = (r.buyPrice||0)*(r.buyQty||0);
         allTime += amt;
         if(inFY(r.buyDate, fy)) thisFY += amt;
       });
+    }else if(m.id === 'equity'){
+      list.forEach(r => {
+        allTime += equityCompute(r).invested;
+        (r.txns||[]).forEach(t => { if(t.type==='Buy' && inFY(t.date, fy)) thisFY += t.qty*t.price; });
+      });
     }else if(m.id === 'chit'){
       list.forEach(r => {
         allTime += chitPaidTotal(r);
         thisFY += chitPaidInFYPrecise(r, fy);
+      });
+    }else if(m.id === 'maturity'){
+      list.forEach(r => {
+        allTime += r.investedAmount||0;
+        if(inFY(r.startDate, fy)) thisFY += r.investedAmount||0;
       });
     }
   });
@@ -902,6 +921,8 @@ function exportAll(){
     rows = rows.concat(
       m.custom === 'fno' ? fnoCsv(true) :
       m.custom === 'crypto' ? cryptoCsv(true) :
+      m.custom === 'equity' ? equityCsv(true) :
+      m.custom === 'maturity' ? maturityCsv() :
       m.custom === 'ppf' ? ppfCsv() :
       m.custom === 'ssy' ? ssyCsv() :
       m.custom === 'bonds' ? bondsCsv() :
@@ -1686,6 +1707,12 @@ function addTenure(dateStr, y, m, d){
   x.setFullYear(x.getFullYear() + (parseInt(y)||0));
   x.setMonth(x.getMonth() + (parseInt(m)||0));
   x.setDate(x.getDate() + (parseInt(d)||0));
+  return x.toISOString().slice(0,10);
+}
+function addDays(dateStr, n){
+  if(!dateStr) return '';
+  const x = new Date(dateStr+'T00:00:00');
+  x.setDate(x.getDate() + (parseInt(n)||0));
   return x.toISOString().slice(0,10);
 }
 function tenureYears(y, m, d){ return (parseInt(y)||0) + (parseInt(m)||0)/12 + (parseInt(d)||0)/365.25; }
@@ -4337,6 +4364,415 @@ $('backupBtn').addEventListener('click', () => {
   a.href = URL.createObjectURL(new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'}));
   a.download = 'investment-v7-backup.json'; a.click();
 });
+
+/* ============================================================
+   EQUITY STOCKS — one record per stock (per holder), holding a
+   buy/sell transaction ledger. Holdings, weighted-average cost,
+   and realised/unrealised P&L are all computed from that ledger —
+   nothing here is a typed-in number that could go stale.
+   ============================================================ */
+const equityAll = () => recs('equity');
+let equityFormOpen = false, equityEditing = null, equityTxOpenFor = null; // {id, type:'Buy'|'Sell'}
+
+/* Walks the ledger in date order with the moving-average-cost method:
+   avg cost updates on every Buy, stays put on a Sell (realising P&L
+   against the average cost at that point) — the standard approach
+   most brokerage statements use. */
+function equityCompute(r){
+  const txns = (r.txns||[]).slice().sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  let qty = 0, avgCost = 0, realized = 0, boughtQty = 0, boughtValue = 0;
+  txns.forEach(t => {
+    if(t.type === 'Buy'){
+      const newQty = qty + t.qty;
+      avgCost = newQty ? ((qty*avgCost) + (t.qty*t.price)) / newQty : t.price;
+      qty = newQty;
+      boughtQty += t.qty; boughtValue += t.qty*t.price;
+    }else{
+      realized += (t.price - avgCost) * t.qty;
+      qty -= t.qty;
+    }
+  });
+  const invested = qty * avgCost;
+  const currentValue = has(r.currentPrice) ? qty * r.currentPrice : null;
+  const unrealized = currentValue!==null ? currentValue - invested : null;
+  return { qty, avgCost, invested, realized, currentValue, unrealized,
+    overallAvgBuyPrice: boughtQty ? boughtValue/boughtQty : 0 };
+}
+function equityScoped(){
+  const list = equityAll();
+  return holderSel.equity ? list.filter(r => (r.holder||'').trim() === holderSel.equity) : list;
+}
+function renderEquity(){
+  const allStocks = equityAll();
+  const holders = distinctHolders(allStocks);
+  if(holders.length <= 1) holderSel.equity = holders[0] || null;
+  if(holderSel.equity && !holders.includes(holderSel.equity)) holderSel.equity = null;
+
+  if(holders.length > 1 && !holderSel.equity){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Equity Stocks</h2>' +
+      '<p>Pick a holder to see their holdings.</p></div><div class="eyebrow">'+allStocks.length+' stocks</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allStocks, mine => inr(mine.reduce((s,r)=>s+equityCompute(r).invested,0))+' invested') + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.equity = b.dataset.pick; render(); }));
+    return;
+  }
+
+  const list = equityScoped();
+  const held = list.filter(r => equityCompute(r).qty > 0);
+  const invested = held.reduce((s,r)=>s+equityCompute(r).invested,0);
+  const curVal = held.reduce((s,r)=>{ const c = equityCompute(r).currentValue; return s + (c===null?equityCompute(r).invested:c); },0);
+  const realized = list.reduce((s,r)=>s+equityCompute(r).realized,0);
+  const unrealized = curVal - invested;
+
+  $('main').innerHTML =
+    '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Equity Stocks</h2>' +
+    '<p>Add a stock once, then log every buy and sell against it — quantity, average cost and P&amp;L all update from the ledger. Uses weighted-average cost, the same method most brokerage statements show.</p></div>' +
+    '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('equity') : '') +
+    (list.length ? '<div class="stats-grid">' +
+      '<div class="glass stat"><div class="k">Stocks held</div><div class="v">'+held.length+'</div><div class="sub">'+list.length+' total, incl. fully sold</div></div>' +
+      '<div class="glass stat"><div class="k">Invested (current holding)</div><div class="v">'+inr(invested)+'</div><div class="sub">at weighted-average cost</div></div>' +
+      '<div class="glass stat pos-edge"><div class="k">Unrealised P/L</div><div class="v '+(unrealized>=0?'pos':'neg')+'">'+(unrealized>=0?'+':'')+inr(unrealized)+'</div>' +
+        '<div class="sub">needs a current price entered per stock</div></div>' +
+      '<div class="glass stat"><div class="k">Realised P/L</div><div class="v '+(realized>=0?'pos':'neg')+'">'+(realized>=0?'+':'')+inr(realized)+'</div><div class="sub">from sells to date</div></div>' +
+    '</div>' : '') +
+    '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="eqNew">' +
+      (list.length ? 'Add another stock' : 'Add your first stock') + '</button></div>' +
+    '<div id="eqFormWrap"></div><div id="eqBook"></div>' +
+    '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
+    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+
+  $('count').textContent = list.length + (list.length===1?' stock':' stocks');
+  $('eqNew').addEventListener('click', () => { equityEditing = null; equityFormOpen = true; equityPaintForm(); });
+  $('exportBtn').addEventListener('click', () => download('investment-equity.csv', equityCsv()));
+  $('clearBtn').addEventListener('click', async () => {
+    if(!list.length) return;
+    if(!confirm('Delete every stock and its transaction history? This cannot be undone.')) return;
+    DB.records.equity = []; await saveDB(); render();
+  });
+  equityPaintForm();
+  equityPaintBook();
+}
+
+function equityPaintForm(){
+  const wrap = $('eqFormWrap'); if(!wrap) return;
+  if(!equityFormOpen){ wrap.innerHTML = ''; return; }
+  const r = equityEditing ? equityAll().find(x=>x.id===equityEditing) || {} : {};
+  const v = k => has(r[k]) ? esc(r[k]) : '';
+
+  wrap.innerHTML =
+    '<form class="glass panel" id="eqForm" autocomplete="off"><h3>'+(equityEditing?'Editing stock':'New stock')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="e_holder">Holder</label><input type="text" id="e_holder" value="'+(v('holder')||(holderSel.equity?esc(holderSel.equity):''))+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="e_stock">Stock name</label><input type="text" id="e_stock" value="'+v('stock')+'" placeholder="RELIANCE" required></div>' +
+      '<div class="fld"><label for="e_broker">Broker</label><input type="text" id="e_broker" value="'+v('broker')+'" placeholder="Zerodha"></div>' +
+      '<div class="fld"><label for="e_currentPrice">Current price <span style="opacity:.6">(optional, for P/L)</span></label><input type="number" id="e_currentPrice" step="any" value="'+v('currentPrice')+'"></div>' +
+      (equityEditing ? '' :
+        '<div class="divider"><span>First buy — more can be added afterwards</span><i></i></div>' +
+        '<div class="fld"><label for="e_buyDate">Buy date</label><input type="date" id="e_buyDate" value="'+today()+'" required></div>' +
+        '<div class="fld"><label for="e_buyQty">Quantity</label><input type="number" id="e_buyQty" step="any" placeholder="25" required></div>' +
+        '<div class="fld"><label for="e_buyPrice">Buy price (per share)</label><input type="number" id="e_buyPrice" step="any" placeholder="1284.55" required></div>') +
+      '<div class="err" id="eqErr"></div>' +
+      '<div class="actions"><button type="submit" class="btn-primary">'+(equityEditing?'Save changes':'Add stock')+'</button>' +
+      '<button type="button" class="btn-ghost" id="eqCancel">Cancel</button></div>' +
+    '</div></form>';
+
+  $('eqCancel').addEventListener('click', () => { equityFormOpen=false; equityEditing=null; equityPaintForm(); });
+  $('eqForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const holder = $('e_holder').value.trim(), stock = $('e_stock').value.trim().toUpperCase();
+    if(!holder || !stock){ $('eqErr').textContent = 'Holder and stock name are needed.'; return; }
+    const list = equityAll();
+    if(equityEditing){
+      const i = list.findIndex(x=>x.id===equityEditing);
+      list[i] = Object.assign({}, list[i], { holder, stock, broker:$('e_broker').value.trim(), currentPrice:num($('e_currentPrice').value) });
+    }else{
+      const buyDate = $('e_buyDate').value, buyQty = num($('e_buyQty').value), buyPrice = num($('e_buyPrice').value);
+      if(!buyDate || !buyQty || buyPrice===null){ $('eqErr').textContent = 'The first buy needs a date, quantity and price.'; return; }
+      list.push({ id:uid(), holder, stock, broker:$('e_broker').value.trim(), currentPrice:num($('e_currentPrice').value),
+        txns:[{ id:uid(), type:'Buy', date:buyDate, qty:buyQty, price:buyPrice }] });
+    }
+    equityFormOpen = false; equityEditing = null;
+    await saveDB(); render();
+  });
+  $('eqForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function equityPaintBook(){
+  const list = equityScoped(); const book = $('eqBook'); if(!book) return;
+  if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No stocks yet</strong>Use the button above to log your first buy.</div>'; return; }
+  const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
+
+  book.innerHTML = list.slice().reverse().map(r => {
+    const c = equityCompute(r);
+    const held = c.qty > 0;
+    const rows = (r.txns||[]).slice().sort((a,b)=>a.date<b.date?1:-1).map(t =>
+      '<div class="srow" style="grid-template-columns:.8fr 1fr 1fr 1fr auto"><span class="m">'+t.type+'</span>' +
+      '<span class="a">'+fmtDate(t.date)+'</span><span class="a">'+t.qty+' qty</span><span class="a">'+inr2(t.price)+'</span>' +
+      '<span class="act"><button type="button" class="undo" data-txdel="'+r.id+'|'+t.id+'">Remove</button></span></div>'
+    ).join('');
+
+    const buyOpen = equityTxOpenFor && equityTxOpenFor.id===r.id && equityTxOpenFor.type==='Buy';
+    const sellOpen = equityTxOpenFor && equityTxOpenFor.id===r.id && equityTxOpenFor.type==='Sell';
+    const buyForm = buyOpen
+      ? '<div class="miniform"><div class="fld"><label for="bd_'+r.id+'">Buy date</label><input type="date" id="bd_'+r.id+'" value="'+today()+'"></div>' +
+        '<div class="fld"><label for="bq_'+r.id+'">Quantity</label><input type="number" step="any" id="bq_'+r.id+'" placeholder="0"></div>' +
+        '<div class="fld"><label for="bp_'+r.id+'">Buy price (per share)</label><input type="number" step="any" id="bp_'+r.id+'" placeholder="0"></div>' +
+        '<div class="actions"><button type="button" class="btn-primary" data-txadd="'+r.id+'|Buy">Add buy</button>' +
+        '<button type="button" class="btn-ghost" data-txcancel="1">Cancel</button></div></div>'
+      : '<button type="button" class="addtx" data-txopen="'+r.id+'|Buy">Add buy</button>';
+    const sellForm = sellOpen
+      ? '<div class="miniform"><div class="fld"><label for="sd_'+r.id+'">Sell date</label><input type="date" id="sd_'+r.id+'" value="'+today()+'"></div>' +
+        '<div class="fld"><label for="sq_'+r.id+'">Quantity <span style="opacity:.6">(max '+c.qty+')</span></label><input type="number" step="any" id="sq_'+r.id+'" placeholder="0" max="'+c.qty+'"></div>' +
+        '<div class="fld"><label for="sp_'+r.id+'">Sell price (per share)</label><input type="number" step="any" id="sp_'+r.id+'" placeholder="0"></div>' +
+        '<div class="err" id="sellErr_'+r.id+'"></div>' +
+        '<div class="actions"><button type="button" class="btn-primary" data-txadd="'+r.id+'|Sell">Add sell</button>' +
+        '<button type="button" class="btn-ghost" data-txcancel="1">Cancel</button></div></div>'
+      : (c.qty > 0 ? '<button type="button" class="addtx" data-txopen="'+r.id+'|Sell">Sell full or partial</button>' : '');
+
+    return '<article class="glass acct"><div class="edge" style="background:var(--gain)"></div>' +
+      '<div class="tkt-top"><div><div class="instr">'+esc(r.stock||'Stock')+'</div>' +
+      '<div class="chips">'+(r.holder?'<span class="chip">'+esc(r.holder)+'</span>':'')+(r.broker?'<span class="chip">'+esc(r.broker)+'</span>':'')+
+      '<span class="chip">'+c.qty+' qty held</span>' +
+      '<span class="chip '+(held?'st-open':'')+'">'+(held?'Holding':'Fully sold')+'</span></div></div>' +
+      '<div class="pnl"><div class="big">'+(c.unrealized===null ? inr(c.invested) : (c.unrealized>=0?'+':'')+inr(c.unrealized))+'</div>' +
+      '<div class="roi">'+(c.unrealized===null ? 'invested, no current price set' : 'unrealised P/L')+'</div></div></div>' +
+      '<div class="cells">' +
+        cell2('Holder', esc(r.holder||'—')) + cell2('Broker', esc(r.broker||'—')) +
+        cell2('Total quantity', c.qty) + cell2('Weighted avg. buy price', inr2(c.avgCost)) +
+        cell2('Total invested (holding)', inr(c.invested)) +
+        cell2('Current price', has(r.currentPrice)?inr2(r.currentPrice):'—') +
+        cell2('Current market value', c.currentValue===null?'—':inr(c.currentValue)) +
+        cell2('Unrealised P/L', c.unrealized===null?'—':(c.unrealized>=0?'+':'')+inr(c.unrealized)) +
+        cell2('Realised P/L (from sells)', (c.realized>=0?'+':'')+inr(c.realized)) +
+      '</div>' +
+      '<div class="txblock"><h4>Transactions'+(rows?' <span class="cnt">'+(r.txns||[]).length+'</span>':'')+'</h4>' +
+        (rows || '<p class="note">Nothing logged yet.</p>') +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+buyForm+sellForm+'</div></div>' +
+      '<div class="rowacts"><button type="button" data-eqedit="'+r.id+'">Edit stock</button>' +
+      '<button type="button" class="del" data-eqdel="'+r.id+'">Delete</button></div></article>';
+  }).join('');
+
+  book.onclick = async e => {
+    const t = e.target;
+    if(t.dataset && t.dataset.txopen){ const [id,type]=t.dataset.txopen.split('|'); equityTxOpenFor={id,type}; equityPaintBook(); return; }
+    if(t.dataset && t.dataset.txcancel){ equityTxOpenFor=null; equityPaintBook(); return; }
+    if(t.dataset && t.dataset.txadd){
+      const [id,type] = t.dataset.txadd.split('|');
+      const r = list.find(x=>x.id===id); if(!r) return;
+      const dateEl = type==='Buy' ? $('bd_'+id) : $('sd_'+id);
+      const qtyEl = type==='Buy' ? $('bq_'+id) : $('sq_'+id);
+      const priceEl = type==='Buy' ? $('bp_'+id) : $('sp_'+id);
+      const date = (dateEl && dateEl.value) ? dateEl.value : today();
+      const qty = qtyEl ? (num(qtyEl.value)||0) : 0;
+      const price = priceEl ? (num(priceEl.value)||0) : 0;
+      if(!qty || !price) return;
+      if(type==='Sell'){
+        const c = equityCompute(r);
+        if(qty > c.qty){
+          const errEl = $('sellErr_'+id);
+          if(errEl) errEl.textContent = 'You only hold '+c.qty+' — cannot sell '+qty+'.';
+          return;
+        }
+      }
+      r.txns = r.txns || [];
+      r.txns.push({ id: uid(), type, date, qty, price });
+      equityTxOpenFor = null; await saveDB(); render(); return;
+    }
+    const b = t.closest('button'); if(!b) return;
+    if(b.dataset.txdel){
+      const [rid, txid] = b.dataset.txdel.split('|');
+      const r = list.find(x=>x.id===rid); if(!r) return;
+      r.txns = (r.txns||[]).filter(x=>x.id!==txid);
+      await saveDB(); render(); return;
+    }
+    if(b.dataset.eqedit){ equityEditing = b.dataset.eqedit; equityFormOpen = true; equityPaintForm(); return; }
+    if(b.dataset.eqdel){
+      if(!confirm('Delete this stock and its full transaction history? This cannot be undone.')) return;
+      DB.records.equity = equityAll().filter(x=>x.id!==b.dataset.eqdel);
+      await saveDB(); render();
+    }
+  };
+}
+
+function equityCsv(all){
+  const head = ['Holder','Stock','Broker','Current price','Total quantity','Weighted avg buy price','Total invested (holding)',
+    'Current market value','Unrealised P/L','Realised P/L','Txn type','Txn date','Txn qty','Txn price'];
+  const rows = [];
+  (all ? equityAll() : equityScoped()).forEach(r => {
+    const c = equityCompute(r);
+    const base = [r.holder||'', r.stock||'', r.broker||'', has(r.currentPrice)?r.currentPrice:'', c.qty, c.avgCost.toFixed(2),
+      c.invested.toFixed(2), c.currentValue===null?'':c.currentValue.toFixed(2), c.unrealized===null?'':c.unrealized.toFixed(2), c.realized.toFixed(2)];
+    const txns = (r.txns||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+    if(!txns.length) rows.push(base.concat(['','','','']));
+    txns.forEach(t => rows.push(base.concat([t.type, t.date, t.qty, t.price])));
+  });
+  return [head, ...rows];
+}
+
+/* ============================================================
+   MATURITY TRACKER — a read-only radar pulled live from FD, RD,
+   Bonds, PPF and SSY, plus your own manual entries for anything
+   else with a maturity date. Sorted soonest-first.
+   ============================================================ */
+const maturityAll = () => recs('maturity');
+let maturityFormOpen = false, maturityEditing = null;
+
+function maturityFeed(){
+  const rows = [];
+  fdAll().forEach(x => {
+    if(x.closed) return;
+    const mat = fdMaturityDate(x); if(!mat) return;
+    rows.push({ key:'fd:'+x.id, source:'FD', name:x.fdNo||'FD', holder:x.holder||'', start:x.openDate,
+      maturity:mat, invested:x.amount||0, maturityAmt:fdMaturityAmt(x), rate:x.rate, manual:false });
+  });
+  rdAll().forEach(x => {
+    if(x.closed) return;
+    const mat = rdMaturityDate(x); if(!mat) return;
+    rows.push({ key:'rd:'+x.id, source:'RD', name:x.rdNo||'RD', holder:x.holder||'', start:x.openDate,
+      maturity:mat, invested:recurringTotal(x), maturityAmt:rdMaturityAmt(x), rate:x.rate, manual:false });
+  });
+  bondsAll().forEach(b => {
+    if(bondStatus(b)==='Redeemed') return;
+    const mat = bondMaturity(b); if(!mat) return;
+    rows.push({ key:'bonds:'+b.id, source:'Bonds', name:b.bondName||'Bond', holder:b.holder||'', start:b.purchaseDate,
+      maturity:mat, invested:bondInvested(b), maturityAmt:bondInvested(b), rate:null, manual:false });
+  });
+  ppfAll().forEach(a => {
+    const mat = ppfMaturity(a); if(!mat) return;
+    rows.push({ key:'ppf:'+a.id, source:'PPF', name:(a.holder?esc(a.holder)+'\u2019s PPF':'PPF'), holder:a.holder||'', start:a.openDate,
+      maturity:mat, invested:recurringTotal(a), maturityAmt:null, rate:null, manual:false });
+  });
+  ssyAll().forEach(a => {
+    const mat = ssyMaturity(a); if(!mat) return;
+    rows.push({ key:'ssy:'+a.id, source:'SSY', name:(a.name?esc(a.name)+'\u2019s SSY':'SSY'), holder:a.holder||a.name||'', start:a.openDate,
+      maturity:mat, invested:recurringTotal(a), maturityAmt:null, rate:null, manual:false });
+  });
+  maturityAll().forEach(m => {
+    if(!m.maturityDate) return;
+    rows.push({ key:'manual:'+m.id, id:m.id, source:m.investmentType||'Other', name:m.name||'Investment', holder:m.holder||'',
+      start:m.startDate, maturity:m.maturityDate, invested:m.investedAmount||0, maturityAmt:has(m.maturityAmount)?m.maturityAmount:null,
+      rate:has(m.interestRate)?m.interestRate:null, notes:m.notes||'', manual:true });
+  });
+  return rows.sort((a,b) => a.maturity < b.maturity ? -1 : a.maturity > b.maturity ? 1 : 0);
+}
+
+function renderMaturity(){
+  const rows = maturityFeed();
+  const todayStr = today();
+  const in30 = rows.filter(r => r.maturity >= todayStr && r.maturity <= addDays(todayStr,30));
+  const in90 = rows.filter(r => r.maturity >= todayStr && r.maturity <= addDays(todayStr,90));
+  const overdue = rows.filter(r => r.maturity < todayStr);
+  const totalInvested = rows.reduce((s,r)=>s+(r.invested||0),0);
+  const totalMaturity = rows.reduce((s,r)=>s+(has(r.maturityAmt)?r.maturityAmt:r.invested||0),0);
+
+  $('main').innerHTML =
+    '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Maturity Tracker</h2>' +
+    '<p>Every FD, RD, Bond, PPF and SSY maturity pulled in automatically, sorted soonest first. Add anything else — Post Office schemes, corporate deposits — by hand below.</p></div>' +
+    '<div class="eyebrow">'+rows.length+' tracked</div></div>' +
+    (rows.length ? '<div class="stats-grid">' +
+      '<div class="glass stat"><div class="k">Total invested</div><div class="v">'+inr(totalInvested)+'</div><div class="sub">across every maturity instrument</div></div>' +
+      '<div class="glass stat"><div class="k">Expected at maturity</div><div class="v pos">'+inr(totalMaturity)+'</div></div>' +
+      '<div class="glass stat'+(in30.length?' pos-edge':'')+'"><div class="k">Maturing in 30 days</div><div class="v'+(in30.length?' pos':'')+'">'+in30.length+'</div>' +
+        (in30.length?'<div class="sub">'+inr(in30.reduce((s,r)=>s+(has(r.maturityAmt)?r.maturityAmt:r.invested||0),0))+' due</div>':'')+'</div>' +
+      '<div class="glass stat"><div class="k">Maturing in 90 days</div><div class="v">'+in90.length+'</div></div>' +
+    '</div>' : '') +
+    (overdue.length ? '<div class="glass" style="padding:14px 16px;margin-bottom:16px;border:1px solid color-mix(in srgb,var(--loss) 45%,transparent)">' +
+      '<strong style="color:var(--loss)">'+overdue.length+' past its maturity date</strong> — check if it\u2019s been renewed, closed, or just needs the date updated.</div>' : '') +
+    '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="matNew">Add other maturity investment</button></div>' +
+    '<div id="matFormWrap"></div>' +
+    '<div class="glass" style="overflow-x:auto;padding:0">' +
+      (rows.length ? maturityTableHTML(rows, todayStr) : '<div class="empty" style="border:none"><strong>Nothing to show yet</strong>Add an FD, RD, Bond, PPF or SSY account, or log another maturity investment by hand.</div>') +
+    '</div>' +
+    '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
+    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear manual entries</button></span></div>';
+
+  $('matNew').addEventListener('click', () => { maturityEditing = null; maturityFormOpen = true; maturityPaintForm(); });
+  $('exportBtn').addEventListener('click', () => download('investment-maturity.csv', maturityCsv(rows)));
+  $('clearBtn').addEventListener('click', async () => {
+    if(!maturityAll().length) return;
+    if(!confirm('Delete every manually-added maturity entry? FD/RD/Bonds/PPF/SSY themselves are untouched — this only clears entries you typed in here.')) return;
+    DB.records.maturity = []; await saveDB(); render();
+  });
+  maturityPaintForm();
+
+  $('main').querySelectorAll('[data-matedit]').forEach(b => b.addEventListener('click', () => {
+    maturityEditing = b.dataset.matedit; maturityFormOpen = true; maturityPaintForm();
+  }));
+  $('main').querySelectorAll('[data-matdel]').forEach(b => b.addEventListener('click', async () => {
+    if(!confirm('Delete this maturity entry? This cannot be undone.')) return;
+    DB.records.maturity = maturityAll().filter(x=>x.id!==b.dataset.matdel);
+    await saveDB(); render();
+  }));
+}
+
+function maturityTableHTML(rows, todayStr){
+  const badge = r => {
+    if(r.maturity < todayStr) return '<span class="pill due">Overdue</span>';
+    if(r.maturity <= addDays(todayStr,30)) return '<span class="pill holiday">30 days</span>';
+    if(r.maturity <= addDays(todayStr,60)) return '<span class="pill pending">60 days</span>';
+    if(r.maturity <= addDays(todayStr,90)) return '<span class="pill pending">90 days</span>';
+    return '';
+  };
+  const head = '<div class="mrow head"><span>Scheme</span><span class="n">Type</span><span class="n">Maturity date</span>' +
+    '<span class="p">Invested</span><span class="p">At maturity</span><span></span></div>';
+  const body = rows.map(r =>
+    '<div class="mrow"><span class="mth">'+esc(r.name)+(r.holder?' <span style="opacity:.55;font-weight:400">· '+esc(r.holder)+'</span>':'')+'</span>' +
+    '<span class="n">'+esc(r.source)+'</span>' +
+    '<span class="n">'+fmtDate(r.maturity)+' '+badge(r)+'</span>' +
+    '<span class="p">'+inr(r.invested||0)+'</span>' +
+    '<span class="p">'+(has(r.maturityAmt)?inr(r.maturityAmt):'—')+'</span>' +
+    '<span class="act">'+(r.manual ? '<button type="button" class="undo" data-matedit="'+r.id+'">Edit</button><button type="button" class="undo" data-matdel="'+r.id+'">Delete</button>' : '')+'</span></div>'
+  ).join('');
+  return head + body;
+}
+
+function maturityPaintForm(){
+  const wrap = $('matFormWrap'); if(!wrap) return;
+  if(!maturityFormOpen){ wrap.innerHTML = ''; return; }
+  const m = maturityEditing ? maturityAll().find(x=>x.id===maturityEditing) || {} : {};
+  const v = k => has(m[k]) ? esc(m[k]) : '';
+
+  wrap.innerHTML =
+    '<form class="glass panel" id="matForm" autocomplete="off"><h3>'+(maturityEditing?'Editing entry':'New maturity investment')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="m_name">Investment / scheme name</label><input type="text" id="m_name" value="'+v('name')+'" placeholder="Post Office MIS" required></div>' +
+      '<div class="fld"><label for="m_holder">Holder</label><input type="text" id="m_holder" value="'+v('holder')+'" placeholder="Name"></div>' +
+      '<div class="fld"><label for="m_investmentType">Investment type</label><input type="text" id="m_investmentType" value="'+v('investmentType')+'" placeholder="Post Office / Corporate FD / NCD…"></div>' +
+      '<div class="fld"><label for="m_startDate">Start date</label><input type="date" id="m_startDate" value="'+v('startDate')+'"></div>' +
+      '<div class="fld"><label for="m_maturityDate">Maturity date</label><input type="date" id="m_maturityDate" value="'+v('maturityDate')+'" required></div>' +
+      '<div class="fld"><label for="m_investedAmount">Invested amount</label><input type="number" id="m_investedAmount" step="any" value="'+v('investedAmount')+'" placeholder="100000" required></div>' +
+      '<div class="fld"><label for="m_maturityAmount">Expected maturity amount</label><input type="number" id="m_maturityAmount" step="any" value="'+v('maturityAmount')+'" placeholder="optional"></div>' +
+      '<div class="fld"><label for="m_interestRate">Interest rate % <span style="opacity:.6">(optional)</span></label><input type="number" id="m_interestRate" step="any" value="'+v('interestRate')+'"></div>' +
+      '<div class="fld" style="grid-column:1/-1"><label for="m_notes">Notes <span style="opacity:.6">(optional)</span></label><textarea id="m_notes" rows="2" style="width:100%;resize:vertical">'+v('notes')+'</textarea></div>' +
+      '<div class="err" id="matErr"></div>' +
+      '<div class="actions"><button type="submit" class="btn-primary">'+(maturityEditing?'Save changes':'Add entry')+'</button>' +
+      '<button type="button" class="btn-ghost" id="matCancel">Cancel</button></div>' +
+    '</div></form>';
+
+  $('matCancel').addEventListener('click', () => { maturityFormOpen=false; maturityEditing=null; maturityPaintForm(); });
+  $('matForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = $('m_name').value.trim(), maturityDate = $('m_maturityDate').value, investedAmount = num($('m_investedAmount').value);
+    if(!name || !maturityDate || investedAmount===null){
+      $('matErr').textContent = 'Scheme name, maturity date and invested amount are needed.'; return;
+    }
+    const rec = { name, holder:$('m_holder').value.trim(), investmentType:$('m_investmentType').value.trim(),
+      startDate:$('m_startDate').value, maturityDate, investedAmount,
+      maturityAmount:num($('m_maturityAmount').value), interestRate:num($('m_interestRate').value), notes:$('m_notes').value.trim() };
+    const list = maturityAll();
+    if(maturityEditing){ const i = list.findIndex(x=>x.id===maturityEditing); list[i] = Object.assign({}, list[i], rec); }
+    else { rec.id = uid(); list.push(rec); }
+    maturityFormOpen = false; maturityEditing = null;
+    await saveDB(); render();
+  });
+  $('matForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function maturityCsv(rows){
+  rows = rows || maturityFeed();
+  const head = ['Scheme name','Source','Holder','Start date','Maturity date','Invested amount','Expected maturity amount','Interest rate %','Notes'];
+  return [head, ...rows.map(r => [r.name, r.source, r.holder||'', r.start||'', r.maturity, r.invested||'',
+    has(r.maturityAmt)?r.maturityAmt:'', has(r.rate)?r.rate:'', r.notes||''])];
+}
 
 /* ============================================================
    CREDENTIALS — a simple vault for logins to your investment
