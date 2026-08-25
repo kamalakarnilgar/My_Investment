@@ -318,8 +318,44 @@ const MON  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 const fmtDate = d => { if(!d) return '—'; const [y,m,dd]=String(d).split('-'); return dd+' '+MON[+m-1]+' '+y.slice(2); };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const today = () => new Date().toISOString().slice(0,10);
+const usd = n => (n<0?'−':'')+'$'+Math.round(Math.abs(n)).toLocaleString('en-US');
+const usd2 = n => (n<0?'−':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 function addMonths(d, m){ if(!d||!m) return ''; const x=new Date(d); x.setMonth(x.getMonth()+Math.round(m)); return x.toISOString().slice(0,10); }
 const fmt = { inr, inr2, pct, text:v=>v, date:fmtDate, num:v=>v };
+
+/* ---------- holder grouping, shared by every module ---------- */
+let holderSel = {}; // { moduleId: selectedHolderName|null }
+const distinctHolders = list => [...new Set(list.map(a => (a.holder||'').trim()).filter(Boolean))].sort();
+function holderGridHTML(list, computeAmount){
+  return distinctHolders(list).map(h => {
+    const mine = list.filter(a => (a.holder||'').trim() === h);
+    const amt = computeAmount ? computeAmount(mine) : '';
+    return '<button type="button" class="glass holdertile" data-pick="'+esc(h)+'"><h3>'+esc(h)+'</h3>' +
+      '<div class="cnt">'+mine.length+' entr'+(mine.length===1?'y':'ies')+'</div>' +
+      (amt!==''?'<div class="amt">'+amt+'</div>':'') + '</button>';
+  }).join('');
+}
+/* Call at the top of a module's paint-body. Returns the record list scoped
+   to the selected holder, and paints+wires the tile grid (returning null)
+   when more than one holder exists and none is picked yet — the caller
+   should stop and return in that case. */
+function holderScope(moduleId, list, wrapEl, computeAmount){
+  const holders = distinctHolders(list);
+  if(holders.length <= 1){ holderSel[moduleId] = holders[0] || null; return list; }
+  if(holderSel[moduleId] && !holders.includes(holderSel[moduleId])) holderSel[moduleId] = null;
+  if(!holderSel[moduleId]){
+    wrapEl.innerHTML = '<div class="tiles">' + holderGridHTML(list, computeAmount) + '</div>';
+    wrapEl.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => {
+      holderSel[moduleId] = b.dataset.pick; render();
+    }));
+    return null;
+  }
+  return list.filter(a => (a.holder||'').trim() === holderSel[moduleId]);
+}
+function holderBackRow(moduleId, onBack){
+  return '<div class="backrow"><button type="button" class="backbtn" data-holderback="'+moduleId+'">← All holders</button>' +
+    '<div class="eyebrow">'+esc(holderSel[moduleId])+'</div></div>';
+}
 function show(v, f){
   if(!has(v)) return '—';
   if(f==='inr') return inr(v); if(f==='inr2') return inr2(v);
@@ -396,6 +432,9 @@ const MODULES = [
   },
   {
     id:'fno', name:'F&O Trading', group:'Market', blurb:'Options book with premium, margin, P&L and monthly returns.', custom:'fno'
+  },
+  {
+    id:'crypto', name:'Crypto', group:'Market', blurb:'Same book as F&O, priced in dollars — profit converts to rupees at a fixed rate.', custom:'crypto'
   },
   {
     id:'fd', name:'FD', group:'Debt', blurb:'Fixed deposits — tenure, maturity and premature closure.', custom:'fd'
@@ -535,6 +574,8 @@ function buildNav(){
 document.addEventListener('click', e => {
   const fb = e.target.closest('[data-folder]');
   if(fb){ const f = fb.dataset.folder; navFolderState[f] = !(navFolderState[f] !== false); buildNav(); return; }
+  const hb = e.target.closest('[data-holderback]');
+  if(hb){ holderSel[hb.dataset.holderback] = null; render(); return; }
   const b = e.target.closest('[data-go]');
   if(!b) return;
   route = b.dataset.go; tab = 'all'; editingId = null;
@@ -547,6 +588,7 @@ function render(){
   const m = MOD(route);
   if(!m) return renderHome();
   if(m.custom === 'fno') return renderFno();
+  if(m.custom === 'crypto') return renderCrypto();
   if(m.custom === 'ppf') return renderPpf();
   if(m.custom === 'ssy') return renderSsy();
   if(m.custom === 'bonds') return renderBonds();
@@ -858,15 +900,16 @@ function exportAll(){
     const list = DB.records[m.id] || []; if(!list.length) return;
     rows.push([m.name]);
     rows = rows.concat(
-      m.custom === 'fno' ? fnoCsv() :
+      m.custom === 'fno' ? fnoCsv(true) :
+      m.custom === 'crypto' ? cryptoCsv(true) :
       m.custom === 'ppf' ? ppfCsv() :
       m.custom === 'ssy' ? ssyCsv() :
       m.custom === 'bonds' ? bondsCsv() :
-      m.custom === 'fd' ? fdCsv() :
-      m.custom === 'rd' ? rdCsv() :
-      m.custom === 'p2p' ? p2pCsv() :
-      m.custom === 'chit' ? chitCsv() :
-      m.custom === 'insurance' ? insuranceCsv() :
+      m.custom === 'fd' ? fdCsv(true) :
+      m.custom === 'rd' ? rdCsv(true) :
+      m.custom === 'p2p' ? p2pCsv(true) :
+      m.custom === 'chit' ? chitCsv(true) :
+      m.custom === 'insurance' ? insuranceCsv(true) :
       m.custom === 'sip' ? sipCsv('sip') :
       m.custom === 'etf' ? sipCsv('etf') :
       m.custom === 'apy' ? genRecCsv('apy') :
@@ -894,11 +937,34 @@ function fnoDerive(t){
   return { qty, premium, rom, profit, roi, status: closed ? 'Closed' : 'Active' };
 }
 
+function fnoScoped(){
+  const list = fno();
+  return holderSel.fno ? list.filter(t => (t.holder||'').trim() === holderSel.fno) : list;
+}
 function renderFno(){
+  const allTrades = fno();
+  const holders = distinctHolders(allTrades);
+  if(holders.length <= 1) holderSel.fno = holders[0] || null;
+  if(holderSel.fno && !holders.includes(holderSel.fno)) holderSel.fno = null;
+
+  if(holders.length > 1 && !holderSel.fno){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>F&amp;O Trading</h2>' +
+      '<p>Pick a holder to see their trades.</p></div><div class="eyebrow">'+allTrades.length+' trades</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allTrades, mine => {
+        const closed = mine.filter(t => has(t.exitPrice));
+        const pnl = closed.reduce((s,t) => s+fnoDerive(t).profit, 0);
+        return (pnl>=0?'+':'')+inr(pnl)+' realised';
+      }) + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.fno = b.dataset.pick; render(); }));
+    return;
+  }
+
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>F&amp;O Trading</h2>' +
     '<p>Log an entry, close it with an exit price. Premium, expected return on margin, profit and ROI compute themselves.</p></div>' +
     '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('fno') : '') +
 
     '<div class="glass capital"><div><label class="k" for="capital">Initial capital</label>' +
     '<input type="number" id="capital" step="any" placeholder="500000"></div>' +
@@ -914,6 +980,7 @@ function renderFno(){
     '</div>' +
 
     '<form class="glass panel" id="form" autocomplete="off"><h3 id="form-title">New trade</h3><div class="grid">' +
+      '<div class="fld"><label for="holder">Holder</label><input type="text" id="holder" placeholder="Name" required></div>' +
       '<div class="fld"><label for="entryDate">Date of entry</label><input type="date" id="entryDate" required></div>' +
       '<div class="fld"><label for="symbol">Symbol</label><input type="text" id="symbol" placeholder="NIFTY" required></div>' +
       '<div class="fld"><label for="instrument">Instrument</label><select id="instrument"><option value="Option">Option</option><option value="Future">Future</option></select></div>' +
@@ -987,7 +1054,7 @@ function fnoToggleInstrument(){
 function fnoRead(){
   const instrument = $('instrument').value;
   return {
-    entryDate:$('entryDate').value, symbol:$('symbol').value.trim().toUpperCase(), instrument,
+    holder:$('holder').value.trim(), entryDate:$('entryDate').value, symbol:$('symbol').value.trim().toUpperCase(), instrument,
     strike: instrument==='Future' ? null : num($('strike').value), expiry:$('expiry').value,
     optType: instrument==='Future' ? null : $('optType').value, side:$('side').value,
     entryPrice:num($('entryPrice').value), lotSize:num($('lotSize').value),
@@ -1010,6 +1077,7 @@ function fnoReset(){
   $('form').reset(); editingId = null;
   $('entryDate').value = today();
   $('instrument').value = 'Option';
+  if(holderSel.fno) $('holder').value = holderSel.fno;
   fnoToggleInstrument();
   $('form-title').textContent = 'New trade';
   $('submitBtn').textContent = 'Add trade';
@@ -1017,7 +1085,7 @@ function fnoReset(){
   fnoPreview();
 }
 function fnoFill(t){
-  $('entryDate').value = t.entryDate||''; $('symbol').value = t.symbol||'';
+  $('holder').value = t.holder||''; $('entryDate').value = t.entryDate||''; $('symbol').value = t.symbol||'';
   $('instrument').value = t.instrument || 'Option';
   fnoToggleInstrument();
   $('strike').value = has(t.strike)?t.strike:''; $('expiry').value = t.expiry||'';
@@ -1037,7 +1105,8 @@ async function fnoSubmit(e, addAnother){
   if(e) e.preventDefault();
   const t = fnoRead();
   let msg = null;
-  if(!t.symbol) msg = 'Add a symbol.';
+  if(!t.holder) msg = 'Add a holder name.';
+  else if(!t.symbol) msg = 'Add a symbol.';
   else if(!t.entryDate) msg = 'Add the date of entry.';
   else if(t.entryPrice===null) msg = 'Add the entry price.';
   else if(!t.lotSize) msg = 'Lot size cannot be zero.';
@@ -1076,7 +1145,7 @@ async function fnoRowAction(e){
 }
 
 function fnoRefresh(){
-  const list = fno();
+  const list = fnoScoped();
   const view = list.filter(t => tab==='all' || fnoDerive(t).status===tab);
   const book = $('book'); book.innerHTML = '';
   if(!view.length){
@@ -1094,7 +1163,7 @@ function fnoRefresh(){
     const cls = d.profit===null ? 'idle' : d.profit>=0 ? 'pos' : 'neg';
     el.innerHTML =
       '<div class="edge"></div><div class="tkt-top"><div><div class="instr">'+esc(instr)+'</div>' +
-      '<div class="chips"><span class="chip side">'+t.side+'</span>' +
+      '<div class="chips">'+(t.holder?'<span class="chip">'+esc(t.holder)+'</span>':'')+'<span class="chip side">'+t.side+'</span>' +
       '<span class="chip">Exp '+fmtDate(t.expiry)+'</span>' +
       '<span class="chip st-'+d.status.toLowerCase()+'">'+d.status+'</span></div></div>' +
       '<div class="pnl"><div class="big '+cls+'">' +
@@ -1185,16 +1254,352 @@ function fnoMonths(closed, cap){
     '<span class="r '+tcls+'">'+(cap ? (total>=0?'+':'')+pct(total/cap*100) : '—')+'</span></div>';
   body.innerHTML = html;
 }
-function fnoCsv(){
-  const head = ['Date of entry','Symbol','Instrument','Strike price','Expiry date','Option type','Buy/Sell','Entry price','Lot size',
+function fnoCsv(all){
+  const head = ['Holder','Date of entry','Symbol','Instrument','Strike price','Expiry date','Option type','Buy/Sell','Entry price','Lot size',
     'No of lots','Premium received','Margin','Expected return on margin %','Exit date','Exit price','Profit','ROI %','Status'];
-  const rows = fno().map(t => { const d = fnoDerive(t); return [
-    t.entryDate, t.symbol, t.instrument||'Option', has(t.strike)?t.strike:'', t.expiry, t.optType||'', t.side, t.entryPrice, t.lotSize, t.lots,
+  const rows = (all ? fno() : fnoScoped()).map(t => { const d = fnoDerive(t); return [
+    t.holder||'', t.entryDate, t.symbol, t.instrument||'Option', has(t.strike)?t.strike:'', t.expiry, t.optType||'', t.side, t.entryPrice, t.lotSize, t.lots,
     d.premium.toFixed(2), t.margin, d.rom===null?'':d.rom.toFixed(2), t.exitDate||'',
     has(t.exitPrice)?t.exitPrice:'', d.profit===null?'':d.profit.toFixed(2), d.roi===null?'':d.roi.toFixed(2), d.status];});
   return [head, ...rows];
 }
 
+/* ============================================================
+   CRYPTO — same book as F&O, priced in dollars. profit converts
+   to rupees at a fixed rate for reference.
+   ============================================================ */
+const USD_INR = 85;
+const cryptoAll = () => recs('crypto');
+const cryptoDerive = fnoDerive; // identical math regardless of currency
+function cryptoScoped(){
+  const list = cryptoAll();
+  return holderSel.crypto ? list.filter(t => (t.holder||'').trim() === holderSel.crypto) : list;
+}
+function renderCrypto(){
+  const allTrades = cryptoAll();
+  const holders = distinctHolders(allTrades);
+  if(holders.length <= 1) holderSel.crypto = holders[0] || null;
+  if(holderSel.crypto && !holders.includes(holderSel.crypto)) holderSel.crypto = null;
+
+  if(holders.length > 1 && !holderSel.crypto){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Crypto</h2>' +
+      '<p>Pick a holder to see their trades.</p></div><div class="eyebrow">'+allTrades.length+' trades</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allTrades, mine => {
+        const closed = mine.filter(t => has(t.exitPrice));
+        const pnl = closed.reduce((s,t) => s+cryptoDerive(t).profit, 0);
+        return (pnl>=0?'+':'')+usd(pnl)+' realised';
+      }) + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.crypto = b.dataset.pick; render(); }));
+    return;
+  }
+
+  $('main').innerHTML =
+    '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Crypto</h2>' +
+    '<p>Log an entry, close it with an exit price. Everything is priced in dollars — profit also converts to rupees at ₹'+USD_INR+'/$.</p></div>' +
+    '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('crypto') : '') +
+
+    '<div class="glass capital"><div><label class="k" for="cap_capital">Initial capital ($)</label>' +
+    '<input type="number" id="cap_capital" step="any" placeholder="5000"></div>' +
+    '<div><div class="k">Total return on initial capital</div><div class="v" id="c-tror">—</div>' +
+    '<div class="sub" id="c-tror-sub">realised profit ÷ initial capital</div></div></div>' +
+
+    '<div class="stats-grid">' +
+      '<div class="glass stat"><div class="k">Open positions</div><div class="v" id="c-open">0</div><div class="sub" id="c-open-sub"></div></div>' +
+      '<div class="glass stat"><div class="k">Closed trades</div><div class="v" id="c-closed">0</div><div class="sub" id="c-closed-sub"></div></div>' +
+      '<div class="glass stat"><div class="k">Realised profit</div><div class="v" id="c-pnl">—</div><div class="sub" id="c-roi"></div></div>' +
+      '<div class="glass stat"><div class="k">Premium in hand</div><div class="v" id="c-prem">—</div><div class="sub">from open trades</div></div>' +
+      '<div class="glass stat"><div class="k">Margin blocked</div><div class="v" id="c-marg">—</div><div class="sub" id="c-rom">—</div></div>' +
+    '</div>' +
+
+    '<form class="glass panel" id="cform" autocomplete="off"><h3 id="cform-title">New trade</h3><div class="grid">' +
+      '<div class="fld"><label for="c_holder">Holder</label><input type="text" id="c_holder" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="c_entryDate">Date of entry</label><input type="date" id="c_entryDate" required></div>' +
+      '<div class="fld"><label for="c_symbol">Symbol</label><input type="text" id="c_symbol" placeholder="BTC" required></div>' +
+      '<div class="fld"><label for="c_instrument">Instrument</label><select id="c_instrument"><option value="Option">Option</option><option value="Future">Future</option></select></div>' +
+      '<div class="fld" id="c_fld-strike"><label for="c_strike">Strike price ($)</label><input type="number" id="c_strike" step="any" placeholder="65000"></div>' +
+      '<div class="fld"><label for="c_expiry">Expiry date</label><input type="date" id="c_expiry"></div>' +
+      '<div class="fld" id="c_fld-optType"><label for="c_optType">Option type</label><select id="c_optType"><option value="Call">Call</option><option value="Put">Put</option></select></div>' +
+      '<div class="fld"><label for="c_side">Buy / Sell</label><select id="c_side"><option value="Sell">Sell</option><option value="Buy">Buy</option></select></div>' +
+      '<div class="fld"><label for="c_entryPrice">Entry price ($)</label><input type="number" id="c_entryPrice" step="any" placeholder="420 or −12.5" required></div>' +
+      '<div class="fld"><label for="c_margin">Margin ($)</label><input type="number" id="c_margin" step="any" placeholder="1500" required></div>' +
+      '<div class="fld"><label for="c_lotSize">Lot size</label><input type="number" id="c_lotSize" step="any" placeholder="1" required></div>' +
+      '<div class="fld"><label for="c_lots">No. of lots</label><input type="number" id="c_lots" step="any" placeholder="1" required></div>' +
+      '<div class="fld calc"><label for="c_premiumOut">Premium received ($)</label><input type="text" id="c_premiumOut" readonly tabindex="-1"></div>' +
+      '<div class="fld calc"><label for="c_romOut">Expected return on margin</label><input type="text" id="c_romOut" readonly tabindex="-1"></div>' +
+      '<div class="divider"><span>Exit — leave blank to keep it active</span><i></i></div>' +
+      '<div class="fld"><label for="c_exitDate">Exit date</label><input type="date" id="c_exitDate"></div>' +
+      '<div class="fld"><label for="c_exitPrice">Exit price ($)</label><input type="number" id="c_exitPrice" step="any" placeholder="−4.25 allowed"></div>' +
+      '<div class="fld calc"><label for="c_profitOut">Profit ($)</label><input type="text" id="c_profitOut" readonly tabindex="-1"></div>' +
+      '<div class="fld calc"><label for="c_profitInrOut">Profit (₹ @ ₹'+USD_INR+'/$)</label><input type="text" id="c_profitInrOut" readonly tabindex="-1"></div>' +
+      '<div class="fld calc"><label for="c_roiOut">ROI</label><input type="text" id="c_roiOut" readonly tabindex="-1"></div>' +
+      '<div class="err" id="cerr"></div>' +
+      '<div class="actions"><button type="submit" class="btn-primary" id="csubmitBtn">Add trade</button>' +
+      '<button type="button" class="btn-ghost" id="caddLegBtn">Save &amp; add same leg</button>' +
+      '<button type="button" class="btn-ghost" id="ccancelBtn" hidden>Cancel</button></div>' +
+    '</div></form>' +
+
+    '<section class="glass months"><h3>Month by month</h3>' +
+    '<p class="note">Grouped by exit date — a trade lands in the month it was closed.</p><div id="cmonthBody"></div></section>' +
+
+    '<div class="toolbar"><div class="tabs" role="tablist">' +
+      '<button type="button" role="tab" data-ctab="all" aria-selected="true">All</button>' +
+      '<button type="button" role="tab" data-ctab="Active" aria-selected="false">Active</button>' +
+      '<button type="button" role="tab" data-ctab="Closed" aria-selected="false">Closed</button></div>' +
+      '<div class="eyebrow" id="ccount2"></div></div>' +
+
+    '<div class="book" id="cbook"></div>' +
+
+    '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
+    '<span><button type="button" id="cexportBtn">Export CSV</button> · <button type="button" id="cclearBtn">Clear module</button></span></div>';
+
+  if(has(DB.capitalCrypto)) $('cap_capital').value = DB.capitalCrypto;
+  $('cap_capital').addEventListener('input', () => { DB.capitalCrypto = num($('cap_capital').value); saveSoon(); cryptoRefresh(); });
+  $('cform').addEventListener('input', cryptoPreview);
+  $('cform').addEventListener('change', cryptoPreview);
+  $('cform').addEventListener('submit', cryptoSubmit);
+  $('c_instrument').addEventListener('change', cryptoToggleInstrument);
+  $('ccancelBtn').addEventListener('click', () => { cryptoReset(); });
+  $('caddLegBtn').addEventListener('click', () => cryptoSubmit(null, true));
+  cryptoTab = 'all';
+  document.querySelectorAll('[data-ctab]').forEach(b => b.addEventListener('click', () => {
+    cryptoTab = b.dataset.ctab;
+    document.querySelectorAll('[data-ctab]').forEach(x => x.setAttribute('aria-selected', x===b));
+    cryptoRefresh();
+  }));
+  $('cbook').addEventListener('click', cryptoRowAction);
+  $('cexportBtn').addEventListener('click', () => download('investment-crypto.csv', cryptoCsv()));
+  $('cclearBtn').addEventListener('click', async () => {
+    if(!cryptoAll().length) return;
+    if(!confirm('Delete every trade in Crypto? This cannot be undone.')) return;
+    DB.records.crypto = []; await saveDB(); render();
+  });
+
+  cryptoReset();
+  cryptoRefresh();
+}
+let cryptoTab = 'all', cryptoEditingId = null;
+function cryptoToggleInstrument(){
+  const isFuture = $('c_instrument').value === 'Future';
+  $('c_fld-strike').style.display = isFuture ? 'none' : '';
+  $('c_fld-optType').style.display = isFuture ? 'none' : '';
+  if(isFuture) $('c_strike').value = '';
+  cryptoPreview();
+}
+function cryptoRead(){
+  const instrument = $('c_instrument').value;
+  return {
+    holder:$('c_holder').value.trim(), entryDate:$('c_entryDate').value, symbol:$('c_symbol').value.trim().toUpperCase(), instrument,
+    strike: instrument==='Future' ? null : num($('c_strike').value), expiry:$('c_expiry').value,
+    optType: instrument==='Future' ? null : $('c_optType').value, side:$('c_side').value,
+    entryPrice:num($('c_entryPrice').value), lotSize:num($('c_lotSize').value),
+    lots:num($('c_lots').value), margin:num($('c_margin').value),
+    exitDate:$('c_exitDate').value, exitPrice:num($('c_exitPrice').value)
+  };
+}
+function cryptoPreview(){
+  const t = cryptoRead();
+  if(t.entryPrice===null || t.lotSize===null || t.lots===null){
+    ['c_premiumOut','c_romOut','c_profitOut','c_profitInrOut','c_roiOut'].forEach(i => $(i).value = ''); return;
+  }
+  const d = cryptoDerive(t);
+  $('c_premiumOut').value = usd2(d.premium);
+  $('c_romOut').value = d.rom===null ? '' : pct(d.rom);
+  $('c_profitOut').value = d.profit===null ? 'open' : usd2(d.profit);
+  $('c_profitInrOut').value = d.profit===null ? 'open' : inr(d.profit*USD_INR);
+  $('c_roiOut').value = d.roi===null ? 'open' : pct(d.roi);
+}
+function cryptoReset(){
+  $('cform').reset(); cryptoEditingId = null;
+  $('c_entryDate').value = today();
+  $('c_instrument').value = 'Option';
+  if(holderSel.crypto) $('c_holder').value = holderSel.crypto;
+  cryptoToggleInstrument();
+  $('cform-title').textContent = 'New trade';
+  $('csubmitBtn').textContent = 'Add trade';
+  $('ccancelBtn').hidden = true; $('cerr').textContent = '';
+  cryptoPreview();
+}
+function cryptoFill(t){
+  $('c_holder').value = t.holder||''; $('c_entryDate').value = t.entryDate||''; $('c_symbol').value = t.symbol||'';
+  $('c_instrument').value = t.instrument || 'Option';
+  cryptoToggleInstrument();
+  $('c_strike').value = has(t.strike)?t.strike:''; $('c_expiry').value = t.expiry||'';
+  $('c_optType').value = t.optType || 'Call'; $('c_side').value = t.side;
+  $('c_entryPrice').value = has(t.entryPrice)?t.entryPrice:'';
+  $('c_lotSize').value = t.lotSize; $('c_lots').value = t.lots; $('c_margin').value = t.margin;
+  $('c_exitDate').value = t.exitDate||''; $('c_exitPrice').value = has(t.exitPrice)?t.exitPrice:'';
+  cryptoEditingId = t.id;
+  const tag = t.instrument==='Future' ? 'FUT' : (has(t.strike)?t.strike:'')+' '+(t.optType==='Call'?'Call':'Put');
+  $('cform-title').textContent = 'Editing '+t.symbol+' '+tag;
+  $('csubmitBtn').textContent = 'Save changes';
+  $('ccancelBtn').hidden = false;
+  cryptoPreview();
+  $('cform').scrollIntoView({behavior:'smooth', block:'start'});
+}
+async function cryptoSubmit(e, addAnother){
+  if(e) e.preventDefault();
+  const t = cryptoRead();
+  let msg = null;
+  if(!t.holder) msg = 'Add a holder name.';
+  else if(!t.symbol) msg = 'Add a symbol.';
+  else if(!t.entryDate) msg = 'Add the date of entry.';
+  else if(t.entryPrice===null) msg = 'Add the entry price.';
+  else if(!t.lotSize) msg = 'Lot size cannot be zero.';
+  else if(!t.lots) msg = 'Number of lots cannot be zero.';
+  else if(!t.margin) msg = 'Add the margin blocked for this trade.';
+  $('cerr').textContent = msg || '';
+  if(msg) return;
+  const list = cryptoAll();
+  const wasEditing = cryptoEditingId;
+  if(cryptoEditingId){ const i = list.findIndex(x=>x.id===cryptoEditingId); list[i] = Object.assign({}, list[i], t); }
+  else { t.id = uid(); list.push(t); }
+  await saveDB(); buildNav();
+  if(addAnother && !wasEditing){
+    cryptoEditingId = null;
+    $('cform-title').textContent = 'New trade — same leg as above';
+    $('csubmitBtn').textContent = 'Add trade';
+    $('ccancelBtn').hidden = true; $('cerr').textContent = '';
+    $('c_entryPrice').value = ''; $('c_lots').value = ''; $('c_exitDate').value = ''; $('c_exitPrice').value = '';
+    cryptoPreview();
+    cryptoRefresh();
+    $('c_entryPrice').focus();
+  }else{
+    cryptoReset(); cryptoRefresh();
+  }
+}
+async function cryptoRowAction(e){
+  const b = e.target.closest('button'); if(!b) return;
+  const id = b.dataset.cedit || b.dataset.cclose || b.dataset.cdel;
+  const t = cryptoAll().find(x=>x.id===id); if(!t) return;
+  if(b.dataset.cdel){ DB.records.crypto = cryptoAll().filter(x=>x.id!==id); await saveDB(); cryptoRefresh(); buildNav(); return; }
+  cryptoFill(t);
+  if(b.dataset.cclose){
+    if(!$('c_exitDate').value) $('c_exitDate').value = today();
+    $('c_exitPrice').focus();
+  }
+}
+function cryptoRefresh(){
+  const list = cryptoScoped();
+  const view = list.filter(t => cryptoTab==='all' || cryptoDerive(t).status===cryptoTab);
+  const book = $('cbook'); book.innerHTML = '';
+  if(!view.length){
+    book.innerHTML = '<div class="glass empty"><strong>' +
+      (list.length ? 'No '+cryptoTab.toLowerCase()+' trades' : 'Your book is empty') + '</strong>' +
+      (list.length ? 'Switch tabs to see the rest.' : 'Fill the form above to log your first trade.') + '</div>';
+  }
+  view.slice().reverse().forEach(t => {
+    const d = cryptoDerive(t);
+    const el = document.createElement('article');
+    el.className = 'glass tkt' + (d.profit===null ? '' : d.profit>=0 ? ' win' : ' lose');
+    const instr = t.instrument==='Future'
+      ? [t.symbol, 'FUT'].filter(String).join(' ')
+      : [t.symbol, has(t.strike)?t.strike:'', t.optType==='Call'?'Call':'Put'].filter(String).join(' ');
+    const cls = d.profit===null ? 'idle' : d.profit>=0 ? 'pos' : 'neg';
+    el.innerHTML =
+      '<div class="edge"></div><div class="tkt-top"><div><div class="instr">'+esc(instr)+'</div>' +
+      '<div class="chips">'+(t.holder?'<span class="chip">'+esc(t.holder)+'</span>':'')+'<span class="chip side">'+t.side+'</span>' +
+      '<span class="chip">Exp '+fmtDate(t.expiry)+'</span>' +
+      '<span class="chip st-'+d.status.toLowerCase()+'">'+d.status+'</span></div></div>' +
+      '<div class="pnl"><div class="big '+cls+'">' +
+        (d.profit===null ? 'Running' : (d.profit>=0?'+':'')+usd(d.profit)) + '</div>' +
+      '<div class="roi">'+(d.roi===null ? 'ROI pending' : 'ROI '+pct(d.roi))+'</div></div></div>' +
+      '<div class="cells">' +
+        cell('Entry', fmtDate(t.entryDate)+' @ '+t.entryPrice) +
+        cell('Quantity', t.lots+' × '+t.lotSize+' = '+d.qty) +
+        cell('Premium received', usd2(d.premium)) +
+        cell('Margin', usd(t.margin)) +
+        cell('Return on margin', d.rom===null?'—':pct(d.rom)) +
+        cell('Exit', d.status==='Closed' ? fmtDate(t.exitDate)+' @ '+t.exitPrice : '—') +
+        cell('Profit ($)', d.profit===null?'—':usd2(d.profit)) +
+        cell('Profit (₹ @ ₹'+USD_INR+'/$)', d.profit===null?'—':inr(d.profit*USD_INR)) +
+        cell('ROI', d.roi===null?'—':pct(d.roi)) +
+      '</div><div class="rowacts">' +
+        (d.status==='Active' ? '<button type="button" data-cclose="'+t.id+'">Close trade</button>' : '') +
+        '<button type="button" data-cedit="'+t.id+'">Edit</button>' +
+        '<button type="button" class="del" data-cdel="'+t.id+'">Delete</button></div>';
+    book.appendChild(el);
+  });
+
+  const label = view.length + (view.length===1?' trade':' trades');
+  $('count').textContent = label; $('ccount2').textContent = label;
+
+  const act = list.filter(t => cryptoDerive(t).status==='Active');
+  const cld = list.filter(t => cryptoDerive(t).status==='Closed');
+  const prem = act.reduce((s,t)=>s+cryptoDerive(t).premium,0);
+  const marg = act.reduce((s,t)=>s+(t.margin||0),0);
+  const pnl  = cld.reduce((s,t)=>s+cryptoDerive(t).profit,0);
+  const cmar = cld.reduce((s,t)=>s+(t.margin||0),0);
+  const wins = cld.filter(t => cryptoDerive(t).profit>=0).length;
+
+  $('c-open').textContent = act.length;
+  $('c-open-sub').textContent = act.length ? 'positions to manage' : 'nothing running';
+  $('c-closed').textContent = cld.length;
+  $('c-closed-sub').textContent = cld.length ? wins+' in profit, '+(cld.length-wins)+' in loss' : 'none settled yet';
+  const pe = $('c-pnl');
+  pe.textContent = cld.length ? (pnl>=0?'+':'')+usd(pnl) : '—';
+  pe.className = 'v ' + (cld.length ? (pnl>=0?'pos':'neg') : '');
+  $('c-roi').textContent = cld.length ? (pnl>=0?'+':'')+inr(pnl*USD_INR)+' converted' + (cmar?' · ROI '+pct(pnl/cmar*100)+' on margin used':'') : 'from closed trades';
+  $('c-prem').textContent = act.length ? usd(prem) : '—';
+  $('c-marg').textContent = act.length ? usd(marg) : '—';
+  $('c-rom').textContent  = marg ? 'return on margin '+pct(prem/marg*100) : '—';
+
+  const cap = DB.capitalCrypto, tr = $('c-tror');
+  if(cap && cld.length){
+    const r = (pnl/cap)*100;
+    tr.textContent = (r>=0?'+':'')+pct(r);
+    tr.className = 'v '+(r>=0?'pos':'neg');
+    $('c-tror-sub').textContent = usd(pnl)+' realised on '+usd(cap);
+  }else{
+    tr.textContent = '—'; tr.className = 'v';
+    $('c-tror-sub').textContent = cap ? 'no closed trades yet' : 'set your initial capital';
+  }
+
+  cryptoMonths(cld, cap);
+}
+function cryptoMonths(closed, cap){
+  const body = $('cmonthBody'); if(!body) return;
+  if(!closed.length){ body.innerHTML = '<p class="note" style="margin:0">Closed trades will roll up here by month.</p>'; return; }
+  const map = {};
+  closed.forEach(t => {
+    const key = (t.exitDate || t.entryDate || '').slice(0,7) || 'unknown';
+    if(!map[key]) map[key] = {profit:0, count:0};
+    map[key].profit += cryptoDerive(t).profit; map[key].count++;
+  });
+  const keys = Object.keys(map).sort().reverse();
+  const peak = Math.max(...keys.map(k => Math.abs(map[k].profit))) || 1;
+  let html = '<div class="mrow head"><span>Month</span><span class="n">Trades</span>' +
+             '<span class="p">Profit ($)</span><span class="r">Return on capital</span></div>';
+  keys.forEach(k => {
+    const m = map[k], [y, mm] = k.split('-');
+    const label = k==='unknown' ? 'Undated' : MON[+mm-1]+' '+y;
+    const cls = m.profit>=0 ? 'pos' : 'neg';
+    const ret = cap ? (m.profit/cap)*100 : null;
+    html += '<div class="mrow"><span class="mth">'+label+'</span><span class="n">'+m.count+'</span>' +
+      '<span class="p '+cls+'">'+(m.profit>=0?'+':'')+usd(m.profit)+'</span>' +
+      '<span class="r '+cls+'">'+(ret===null?'—':(ret>=0?'+':'')+pct(ret))+'</span>' +
+      '<span class="mbar"><i style="width:'+(Math.abs(m.profit)/peak*100).toFixed(1)+'%;background:var(--'+(m.profit>=0?'gain':'loss')+')"></i></span></div>';
+  });
+  const total = closed.reduce((s,t)=>s+cryptoDerive(t).profit,0);
+  const tcls = total>=0 ? 'pos' : 'neg';
+  html += '<div class="mrow" style="border-top-width:2px"><span class="mth">All time</span>' +
+    '<span class="n">'+closed.length+'</span>' +
+    '<span class="p '+tcls+'">'+(total>=0?'+':'')+usd(total)+'</span>' +
+    '<span class="r '+tcls+'">'+(cap ? (total>=0?'+':'')+pct(total/cap*100) : '—')+'</span></div>' +
+    '<p class="note" style="margin:10px 0 0">'+(total>=0?'+':'')+inr(total*USD_INR)+' converted at ₹'+USD_INR+'/$</p>';
+  body.innerHTML = html;
+}
+function cryptoCsv(all){
+  const head = ['Holder','Date of entry','Symbol','Instrument','Strike price ($)','Expiry date','Option type','Buy/Sell','Entry price ($)','Lot size',
+    'No of lots','Premium received ($)','Margin ($)','Expected return on margin %','Exit date','Exit price ($)','Profit ($)','Profit (₹ converted)','ROI %','Status'];
+  const rows = (all ? cryptoAll() : cryptoScoped()).map(t => { const d = cryptoDerive(t); return [
+    t.holder||'', t.entryDate, t.symbol, t.instrument||'Option', has(t.strike)?t.strike:'', t.expiry, t.optType||'', t.side, t.entryPrice, t.lotSize, t.lots,
+    d.premium.toFixed(2), t.margin, d.rom===null?'':d.rom.toFixed(2), t.exitDate||'',
+    has(t.exitPrice)?t.exitPrice:'', d.profit===null?'':d.profit.toFixed(2), d.profit===null?'':(d.profit*USD_INR).toFixed(2),
+    d.roi===null?'':d.roi.toFixed(2), d.status];});
+  return [head, ...rows];
+}
 
 /* ============================================================
    RECURRING-ACCOUNT HELPERS — shared by PPF and SSY
@@ -1968,25 +2373,43 @@ function ssyMaturity(a){
 
 function renderSsy(){
   const list = ssyAll();
-  const fy = currentFY();
-  const a = list[0];
+  const holders = distinctHolders(list.map(a => Object.assign({}, a, {holder: a.holder||a.name})));
+  if(holders.length <= 1) holderSel.ssy = holders[0] || null;
+  if(holderSel.ssy && !holders.includes(holderSel.ssy)) holderSel.ssy = null;
+  const showGrid = holders.length > 1 && !holderSel.ssy;
 
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>SSY</h2>' +
-    '<p>Sukanya Samriddhi allows a single account per girl child. The schedule below is the current financial year — adjust a date if needed, then mark it Paid.</p></div>' +
-    '<div class="eyebrow">' + esc(fyLabel(fy)) + '</div></div>' +
+    '<p>' + (showGrid
+      ? 'Multiple girl children on file. Pick one to see her account, maturity date and this year\u2019s debit schedule.'
+      : 'Sukanya Samriddhi allows one account per girl child. The schedule below is the current financial year — adjust a date if needed, then mark it Paid.') +
+    '</p></div><div class="eyebrow">' + esc(fyLabel(currentFY())) + '</div></div>' +
     '<div id="ssyBody"></div>';
 
   ssyPaintBody();
 }
 
 function ssyPaintBody(){
-  const list = ssyAll(), fy = currentFY(), a = list[0];
+  const list = ssyAll();
+  const holders = distinctHolders(list.map(a => Object.assign({}, a, {holder: a.holder||a.name})));
   const body = $('ssyBody');
 
-  if(!a){
+  if(holders.length > 1 && !holderSel.ssy){
+    body.innerHTML = '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="ssyNew">Add another account</button></div>' +
+      '<div class="tiles">' + holderGridHTML(list.map(a => Object.assign({}, a, {holder: a.holder||a.name})),
+        mine => inr(mine.reduce((s,a)=>s+recurringTotal(a),0))) + '</div><div id="ssyFormWrap"></div>';
+    $('ssyNew').addEventListener('click', () => { ssyEditing = null; ssyFormOpen = true; ssyPaintForm(); });
+    body.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.ssy = b.dataset.pick; ssyPaintBody(); }));
+    ssyPaintForm();
+    return;
+  }
+
+  const scoped = holderSel.ssy ? list.filter(a => (a.holder||a.name) === holderSel.ssy) : list;
+  const fy = currentFY();
+
+  if(!scoped.length){
     body.innerHTML = '<div class="glass empty"><strong>No SSY account yet</strong>' +
-      'Sukanya Samriddhi permits only one account per girl child. Create it and the 21-year maturity date and this year\u2019s debit schedule appear here.</div>' +
+      'Sukanya Samriddhi permits one account per girl child, up to two per family. Create one and the 21-year maturity date and this year\u2019s debit schedule appear here.</div>' +
       '<div style="margin-top:16px" id="ssyFormWrap"></div>' +
       '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="ssyNew">Create SSY account</button></div>';
     $('ssyNew').addEventListener('click', () => { ssyEditing = null; ssyFormOpen = true; ssyPaintForm(); });
@@ -1994,13 +2417,17 @@ function ssyPaintBody(){
     return;
   }
 
-  const total = recurringTotal(a);
-  const rows = recurringSchedule(a, fy);
-  const paidFy = rows.filter(r=>r.paid).reduce((s,r)=>s+r.amount,0);
-  const due = rows.filter(r=>!r.paid).reduce((s,r)=>s+r.amount,0);
-  const pending = rows.filter(r=>!r.paid).length;
+  const total = scoped.reduce((s,a)=>s+recurringTotal(a),0);
+  let paidFy = 0, due = 0, pending = 0;
+  scoped.forEach(a => recurringSchedule(a, fy).forEach(r => { if(r.paid) paidFy += r.amount; else { due += r.amount; pending++; } }));
+  const interest = scoped.reduce((s,a)=>s+(a.interestReceived||0),0);
 
-  body.innerHTML =
+  let html = '';
+  if(holders.length > 1){
+    html += '<div class="backrow"><button type="button" class="backbtn" id="ssyBack">← All girl children</button>' +
+      '<div class="eyebrow">'+esc(holderSel.ssy)+'</div></div>';
+  }
+  html +=
     '<div class="stats-grid">' +
       '<div class="glass stat"><div class="k">Total invested</div><div class="v">'+inr(total)+'</div>' +
         '<div class="sub">initial deposit + paid debits</div></div>' +
@@ -2008,17 +2435,25 @@ function ssyPaintBody(){
         '<div class="sub">'+esc(fyLabel(fy))+'</div></div>' +
       '<div class="glass stat"><div class="k">Still to pay</div><div class="v">'+inr(due)+'</div>' +
         '<div class="sub">'+pending+' instalment'+(pending===1?'':'s')+' pending</div></div>' +
-      (a.interestReceived ? '<div class="glass stat"><div class="k">Interest received</div><div class="v pos">'+inr(a.interestReceived)+'</div><div class="sub">credited to date</div></div>' : '') +
+      (interest ? '<div class="glass stat"><div class="k">Interest received</div><div class="v pos">'+inr(interest)+'</div><div class="sub">credited to date</div></div>' : '') +
     '</div>' +
+    '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="ssyNew">' +
+      (holders.length>1 ? 'Add another account' : 'Create SSY account') + '</button></div>' +
     '<div id="ssyFormWrap"></div>' +
-    '<div id="ssyBook">' + acctCardHTML(a, fy, 's') + '</div>' +
+    '<div id="ssyBook">' + scoped.map(a => acctCardHTML(a, fy, 's')).join('') + '</div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear account</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
 
+  body.innerHTML = html;
+  if($('ssyBack')) $('ssyBack').addEventListener('click', () => { holderSel.ssy = null; ssyFormOpen = false; render(); });
+  $('ssyNew').addEventListener('click', () => { ssyEditing = null; ssyFormOpen = true; ssyPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-ssy.csv', ssyCsv()));
   $('clearBtn').addEventListener('click', async () => {
-    if(!confirm('Delete the SSY account? This cannot be undone.')) return;
-    DB.records.ssy = []; await saveDB(); render();
+    if(!scoped.length) return;
+    if(!confirm('Delete '+(holderSel.ssy?'the SSY account for '+holderSel.ssy:'every SSY account')+'? This cannot be undone.')) return;
+    const keep = new Set(scoped.map(a=>a.id));
+    DB.records.ssy = list.filter(a => !keep.has(a.id));
+    await saveDB(); render();
   });
   $('ssyBook').onclick = e => acctBookClick(e, 'ssy', ssyAll, () => { ssyPaintBody(); }, id => { ssyEditing = id; ssyFormOpen = true; ssyPaintForm(); });
   ssyPaintForm();
@@ -2078,7 +2513,7 @@ function ssyPaintForm(){
     if(ssyEditing){
       rec = list.find(x => x.id === ssyEditing);
       Object.assign(rec, {
-        name, guardian:$('s_guardian').value.trim(), bank:$('s_bank').value.trim(), accountNo:$('s_accountNo').value.trim(),
+        name, holder:name, guardian:$('s_guardian').value.trim(), bank:$('s_bank').value.trim(), accountNo:$('s_accountNo').value.trim(),
         openDate, initialDeposit:num($('s_initialDeposit').value), investType:$('s_investType').value,
         frequency:$('s_frequency').value, debitDay:num($('s_debitDay').value), interestReceived:num($('s_interest').value)
       });
@@ -2087,7 +2522,7 @@ function ssyPaintForm(){
       if(has(typed)) rec.amount = typed;
     }else{
       rec = {
-        id:uid(), name, guardian:$('s_guardian').value.trim(), bank:$('s_bank').value.trim(), accountNo:$('s_accountNo').value.trim(),
+        id:uid(), name, holder:name, guardian:$('s_guardian').value.trim(), bank:$('s_bank').value.trim(), accountNo:$('s_accountNo').value.trim(),
         openDate, initialDeposit:num($('s_initialDeposit').value), investType:$('s_investType').value,
         frequency:$('s_frequency').value, debitDay:num($('s_debitDay').value), amount:num($('s_amount').value),
         interestReceived:num($('s_interest').value), txns:{}, dateOverrides:{}, rateHistory:[]
@@ -2137,12 +2572,31 @@ function fdStatus(x){
   return (mat && mat < today()) ? 'Matured' : 'Open';
 }
 
-function renderFd(){
+function fdScoped(){
   const list = fdAll();
+  return holderSel.fd ? list.filter(x => (x.holder||'').trim() === holderSel.fd) : list;
+}
+function renderFd(){
+  const allDeposits = fdAll();
+  const holders = distinctHolders(allDeposits);
+  if(holders.length <= 1) holderSel.fd = holders[0] || null;
+  if(holderSel.fd && !holders.includes(holderSel.fd)) holderSel.fd = null;
+
+  if(holders.length > 1 && !holderSel.fd){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>FD</h2>' +
+      '<p>Pick a holder to see their deposits.</p></div><div class="eyebrow">'+allDeposits.length+' deposits</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allDeposits, mine => inr(mine.filter(x=>!x.closed).reduce((s,x)=>s+fdMaturityAmt(x),0))+' at maturity') + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.fd = b.dataset.pick; render(); }));
+    return;
+  }
+
+  const list = fdScoped();
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>FD</h2>' +
     '<p>Fixed deposits with tenure in years, months and days. Maturity date and amount auto-calculate — override either if your bank\u2019s figure differs.</p></div>' +
     '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('fd') : '') +
     (list.length ? '<div class="stats-grid">' + fdStats(list).map(s =>
       '<div class="glass stat"><div class="k">'+esc(s.k)+'</div><div class="v '+(s.tone||'')+'">'+s.v+'</div>' +
       (s.sub?'<div class="sub">'+esc(s.sub)+'</div>':'')+'</div>').join('') + '</div>' : '') +
@@ -2183,6 +2637,7 @@ function fdPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="fdForm" autocomplete="off"><h3>'+(fdEditing?'Editing FD':'New FD')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="x_holder">Holder</label><input type="text" id="x_holder" value="'+(v('holder')||(holderSel.fd?esc(holderSel.fd):''))+'" placeholder="Name" required></div>' +
       '<div class="fld"><label for="x_fdNo">FD no</label><input type="text" id="x_fdNo" value="'+v('fdNo')+'" placeholder="FD-100234" required></div>' +
       '<div class="fld"><label for="x_bank">Linked bank</label><input type="text" id="x_bank" value="'+v('bank')+'" placeholder="HDFC Bank"></div>' +
       '<div class="fld"><label for="x_amount">Amount</label><input type="number" id="x_amount" step="any" value="'+v('amount')+'" placeholder="200000" required></div>' +
@@ -2215,13 +2670,13 @@ function fdPaintForm(){
   $('fdForm').addEventListener('submit', async e => {
     e.preventDefault();
     const rec = {
-      fdNo:$('x_fdNo').value.trim(), bank:$('x_bank').value.trim(), amount:num($('x_amount').value),
+      holder:$('x_holder').value.trim(), fdNo:$('x_fdNo').value.trim(), bank:$('x_bank').value.trim(), amount:num($('x_amount').value),
       openDate:$('x_openDate').value, tY:num($('x_tY').value), tM:num($('x_tM').value), tD:num($('x_tD').value),
       rate:num($('x_rate').value), maturityDate:$('x_maturityDate').value || null,
       maturityAmount:num($('x_maturityAmount').value)
     };
-    if(!rec.fdNo || rec.amount===null || !rec.openDate || rec.rate===null){
-      $('fdErr').textContent = 'FD no, amount, open date and interest rate are needed.'; return;
+    if(!rec.holder || !rec.fdNo || rec.amount===null || !rec.openDate || rec.rate===null){
+      $('fdErr').textContent = 'Holder, FD no, amount, open date and interest rate are needed.'; return;
     }
     const list = fdAll();
     if(fdEditing){
@@ -2234,7 +2689,7 @@ function fdPaintForm(){
 }
 
 function fdPaintBook(){
-  const list = fdAll(); const book = $('fdBook');
+  const list = fdScoped(); const book = $('fdBook');
   $('count').textContent = list.length + (list.length===1?' deposit':' deposits');
   if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No FD yet</strong>Create one to track its maturity date and value.</div>'; return; }
   const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
@@ -2252,10 +2707,11 @@ function fdPaintBook(){
 
     return '<article class="glass acct"><div class="edge" style="background:var(--gain)"></div>' +
       '<div class="tkt-top"><div><div class="instr">'+esc(x.fdNo||'FD')+'</div>' +
-      '<div class="chips"><span class="chip">'+esc(x.bank||'')+'</span><span class="chip">'+(x.rate||'—')+'% · '+tenureLabel(x.tY,x.tM,x.tD)+'</span>' +
+      '<div class="chips">'+(x.holder?'<span class="chip">'+esc(x.holder)+'</span>':'')+'<span class="chip">'+esc(x.bank||'')+'</span><span class="chip">'+(x.rate||'—')+'% · '+tenureLabel(x.tY,x.tM,x.tD)+'</span>' +
       '<span class="chip '+(st==='Open'?'st-open':'')+'">'+st+'</span></div></div>' +
       '<div class="pnl"><div class="big">'+inr(amt)+'</div><div class="roi">matures '+fmtDate(mat)+'</div></div></div>' +
       '<div class="cells">' +
+        cell2('Holder', esc(x.holder||'—')) +
         cell2('FD no', esc(x.fdNo||'—')) + cell2('Linked bank', esc(x.bank||'—')) + cell2('Amount', has(x.amount)?inr(x.amount):'—') +
         cell2('Open date', fmtDate(x.openDate)) + cell2('Tenure', tenureLabel(x.tY,x.tM,x.tD)) + cell2('Interest rate', has(x.rate)?pct(x.rate):'—') +
         cell2('Maturity date', fmtDate(mat)) + cell2('Maturity amount', inr2(amt)) +
@@ -2283,10 +2739,10 @@ function fdPaintBook(){
   };
 }
 
-function fdCsv(){
-  const head = ['FD no','Linked bank','Amount','Open date','Tenure','Interest rate %','Maturity date','Maturity amount','Status','Closed date','Amount received on closure'];
-  return [head, ...fdAll().map(x => [
-    x.fdNo||'', x.bank||'', has(x.amount)?x.amount:'', x.openDate||'', tenureLabel(x.tY,x.tM,x.tD), has(x.rate)?x.rate:'',
+function fdCsv(all){
+  const head = ['Holder','FD no','Linked bank','Amount','Open date','Tenure','Interest rate %','Maturity date','Maturity amount','Status','Closed date','Amount received on closure'];
+  return [head, ...(all ? fdAll() : fdScoped()).map(x => [
+    x.holder||'', x.fdNo||'', x.bank||'', has(x.amount)?x.amount:'', x.openDate||'', tenureLabel(x.tY,x.tM,x.tD), has(x.rate)?x.rate:'',
     fdMaturityDate(x), fdMaturityAmt(x).toFixed(2), fdStatus(x), x.closed?x.closed.date:'', x.closed?x.closed.amount:''
   ])];
 }
@@ -2306,12 +2762,31 @@ function rdStatus(x){
   return (mat && mat < today()) ? 'Matured' : 'Open';
 }
 
+function rdScoped(){
+  const list = rdAll();
+  return holderSel.rd ? list.filter(x => (x.holder||'').trim() === holderSel.rd) : list;
+}
 function renderRd(){
-  const list = rdAll(), fy = currentFY();
+  const allDeposits = rdAll(), fy = currentFY();
+  const holders = distinctHolders(allDeposits);
+  if(holders.length <= 1) holderSel.rd = holders[0] || null;
+  if(holderSel.rd && !holders.includes(holderSel.rd)) holderSel.rd = null;
+
+  if(holders.length > 1 && !holderSel.rd){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>RD</h2>' +
+      '<p>Pick a holder to see their deposits.</p></div><div class="eyebrow">'+allDeposits.length+' deposits</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allDeposits, mine => inr(mine.filter(x=>!x.closed).reduce((s,x)=>s+rdMaturityAmt(x),0))+' at maturity') + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.rd = b.dataset.pick; render(); }));
+    return;
+  }
+
+  const list = rdScoped();
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>RD</h2>' +
     '<p>Recurring deposits — instalment due on the day of month you opened the account. Schedule shown is the current financial year; adjust a date if your bank differs, then mark it Paid.</p></div>' +
     '<div class="eyebrow">'+esc(fyLabel(fy))+'</div></div>' +
+    (holders.length > 1 ? holderBackRow('rd') : '') +
     (list.length ? '<div class="stats-grid">' + rdStats(list, fy).map(s =>
       '<div class="glass stat"><div class="k">'+esc(s.k)+'</div><div class="v '+(s.tone||'')+'">'+s.v+'</div>' +
       (s.sub?'<div class="sub">'+esc(s.sub)+'</div>':'')+'</div>').join('') + '</div>' : '') +
@@ -2353,6 +2828,7 @@ function rdPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="rdForm" autocomplete="off"><h3>'+(rdEditing?'Editing RD':'New RD')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="r_holder">Holder</label><input type="text" id="r_holder" value="'+(v('holder')||(holderSel.rd?esc(holderSel.rd):''))+'" placeholder="Name" required></div>' +
       '<div class="fld"><label for="r_rdNo">RD no (account no)</label><input type="text" id="r_rdNo" value="'+v('rdNo')+'" placeholder="91052836643" required></div>' +
       '<div class="fld"><label for="r_bank">Linked bank</label><input type="text" id="r_bank" value="'+v('bank')+'" placeholder="SBI"></div>' +
       '<div class="fld"><label for="r_amount">Amount <span style="opacity:.6">(recurring)</span></label><input type="number" id="r_amount" step="any" value="'+v('amount')+'" placeholder="5000" required></div>' +
@@ -2392,15 +2868,15 @@ function rdPaintForm(){
   $('rdCancel').addEventListener('click', () => { rdFormOpen = false; rdEditing = null; rdPaintForm(); });
   $('rdForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const rdNo = $('r_rdNo').value.trim(), openDate = $('r_openDate').value;
-    if(!rdNo || openDate===''){ $('rdErr').textContent = 'RD no and open date are needed.'; return; }
+    const rdNo = $('r_rdNo').value.trim(), openDate = $('r_openDate').value, holder = $('r_holder').value.trim();
+    if(!holder || !rdNo || openDate===''){ $('rdErr').textContent = 'Holder, RD no and open date are needed.'; return; }
     const changeAmount = num($('r_changeAmount').value), changeFrom = $('r_changeFrom').value;
     const list = rdAll();
     let rec;
     if(rdEditing){
       rec = list.find(r=>r.id===rdEditing);
       Object.assign(rec, {
-        rdNo, bank:$('r_bank').value.trim(), openDate, tY:num($('r_tY').value), tM:num($('r_tM').value), tD:num($('r_tD').value),
+        holder, rdNo, bank:$('r_bank').value.trim(), openDate, tY:num($('r_tY').value), tM:num($('r_tM').value), tD:num($('r_tD').value),
         rate:num($('r_rate').value), maturityDate:$('r_maturityDate').value || null, maturityAmount:num($('r_maturityAmount').value),
         interestReceived:num($('r_interest').value), debitDay: new Date(openDate).getDate(), investType:'Recurring', frequency:'Monthly'
       });
@@ -2408,7 +2884,7 @@ function rdPaintForm(){
       if(has(typed)) rec.amount = typed;
     }else{
       rec = {
-        id:uid(), rdNo, bank:$('r_bank').value.trim(), amount:num($('r_amount').value), openDate,
+        id:uid(), holder, rdNo, bank:$('r_bank').value.trim(), amount:num($('r_amount').value), openDate,
         tY:num($('r_tY').value), tM:num($('r_tM').value), tD:num($('r_tD').value), rate:num($('r_rate').value),
         maturityDate:$('r_maturityDate').value || null, maturityAmount:num($('r_maturityAmount').value),
         interestReceived:num($('r_interest').value), debitDay: new Date(openDate).getDate(),
@@ -2429,7 +2905,7 @@ function rdPaintForm(){
 }
 
 function rdPaintBook(fy){
-  const list = rdAll(); const book = $('rdBook');
+  const list = rdScoped(); const book = $('rdBook');
   if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No RD yet</strong>Create one to see its debit schedule and maturity value.</div>'; return; }
   const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
 
@@ -2461,10 +2937,11 @@ function rdPaintBook(fy){
 
     return '<article class="glass acct"><div class="edge" style="background:var(--gain)"></div>' +
       '<div class="tkt-top"><div><div class="instr">'+esc(x.rdNo||'RD')+'</div>' +
-      '<div class="chips"><span class="chip">'+esc(x.bank||'')+'</span><span class="chip">'+(x.rate||'—')+'% · '+tenureLabel(x.tY,x.tM,x.tD)+'</span>' +
+      '<div class="chips">'+(x.holder?'<span class="chip">'+esc(x.holder)+'</span>':'')+'<span class="chip">'+esc(x.bank||'')+'</span><span class="chip">'+(x.rate||'—')+'% · '+tenureLabel(x.tY,x.tM,x.tD)+'</span>' +
       '<span class="chip '+(st==='Open'?'st-open':'')+'">'+st+'</span></div></div>' +
       '<div class="pnl"><div class="big">'+inr(total)+'</div><div class="roi">invested · matures '+fmtDate(mat)+'</div></div></div>' +
       '<div class="cells">' +
+        cell2('Holder', esc(x.holder||'—')) +
         cell2('RD no', esc(x.rdNo||'—')) + cell2('Linked bank', esc(x.bank||'—')) + cell2('Amount', has(x.amount)?inr(x.amount):'—') +
         cell2('Open date', fmtDate(x.openDate)) + cell2('Tenure', tenureLabel(x.tY,x.tM,x.tD)) + cell2('Interest rate', has(x.rate)?pct(x.rate):'—') +
         cell2('Maturity date', fmtDate(mat)) + cell2('Maturity amount', inr2(matAmt)) +
@@ -2515,12 +2992,12 @@ function rdPaintBook(fy){
   };
 }
 
-function rdCsv(){
-  const head = ['RD no','Linked bank','Amount','Open date','Tenure','Interest rate %','Maturity date','Maturity amount',
+function rdCsv(all){
+  const head = ['Holder','RD no','Linked bank','Amount','Open date','Tenure','Interest rate %','Maturity date','Maturity amount',
     'Total invested','Amount changes','Interest received','Status','Instalment','Due date','Instalment amount','Instalment status','Paid on','Closed date','Amount received on closure'];
   const rows = [];
-  rdAll().forEach(x => {
-    const base = [x.rdNo||'', x.bank||'', has(x.amount)?x.amount:'', x.openDate||'', tenureLabel(x.tY,x.tM,x.tD),
+  (all ? rdAll() : rdScoped()).forEach(x => {
+    const base = [x.holder||'', x.rdNo||'', x.bank||'', has(x.amount)?x.amount:'', x.openDate||'', tenureLabel(x.tY,x.tM,x.tD),
       has(x.rate)?x.rate:'', rdMaturityDate(x), rdMaturityAmt(x).toFixed(2), recurringTotal(x), amountChangeLine(x),
       has(x.interestReceived)?x.interestReceived:'', rdStatus(x)];
     const sch = x.closed ? [] : recurringSchedule(x, currentFY());
@@ -2542,8 +3019,26 @@ function p2pRoi(l){ const amt = l.amount||0; return amt ? (p2pInterestReceived(l
 function p2pOutstanding(l){ return (l.amount||0) - p2pPrincipalReceived(l); }
 function p2pStatus(l){ return p2pOutstanding(l) <= 0 && (l.amount||0) > 0 ? 'Settled' : 'Active'; }
 
-function renderP2p(){
+function p2pScoped(){
   const list = p2pAll();
+  return holderSel.p2p ? list.filter(l => (l.holder||'').trim() === holderSel.p2p) : list;
+}
+function renderP2p(){
+  const allLendings = p2pAll();
+  const holders = distinctHolders(allLendings);
+  if(holders.length <= 1) holderSel.p2p = holders[0] || null;
+  if(holderSel.p2p && !holders.includes(holderSel.p2p)) holderSel.p2p = null;
+
+  if(holders.length > 1 && !holderSel.p2p){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>P2P Lending</h2>' +
+      '<p>Pick a holder to see their lendings.</p></div><div class="eyebrow">'+allLendings.length+' lendings</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allLendings, mine => inr(mine.reduce((s,l)=>s+p2pOutstanding(l),0))+' outstanding') + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.p2p = b.dataset.pick; render(); }));
+    return;
+  }
+
+  const list = p2pScoped();
   const lent = list.reduce((s,l)=>s+(l.amount||0),0);
   const prin = list.reduce((s,l)=>s+p2pPrincipalReceived(l),0);
   const intr = list.reduce((s,l)=>s+p2pInterestReceived(l),0);
@@ -2553,6 +3048,7 @@ function renderP2p(){
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>P2P Lending</h2>' +
     '<p>Log each lending, then add principal and interest transactions as they come in — totals and ROI update from the transaction list.</p></div>' +
     '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('p2p') : '') +
     (list.length ? '<div class="stats-grid">' +
       '<div class="glass stat"><div class="k">Lent out</div><div class="v">'+inr(lent)+'</div><div class="sub">'+list.length+' lending'+(list.length===1?'':'s')+'</div></div>' +
       '<div class="glass stat"><div class="k">Principal received</div><div class="v pos">'+inr(prin)+'</div></div>' +
@@ -2585,6 +3081,7 @@ function p2pPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="p2pForm" autocomplete="off"><h3>'+(p2pEditing?'Editing lending':'New lending')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="pl_holder">Holder</label><input type="text" id="pl_holder" value="'+(v('holder')||(holderSel.p2p?esc(holderSel.p2p):''))+'" placeholder="Name" required></div>' +
       '<div class="fld"><label for="pl_date">Lending date</label><input type="date" id="pl_date" value="'+v('lendDate')+'" required></div>' +
       '<div class="fld"><label for="pl_amount">Lending amount (principal)</label><input type="number" id="pl_amount" step="any" value="'+v('amount')+'" placeholder="25000" required></div>' +
       '<div class="fld"><label for="pl_platform">Lending platform</label><input type="text" id="pl_platform" value="'+v('platform')+'" placeholder="Faircent" required></div>' +
@@ -2612,9 +3109,9 @@ function p2pPaintForm(){
   $('p2pCancel').addEventListener('click', () => { p2pFormOpen = false; p2pEditing = null; p2pPaintForm(); });
   $('p2pForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const rec = { lendDate:$('pl_date').value, amount:num($('pl_amount').value), platform:$('pl_platform').value.trim() };
-    if(!rec.lendDate || rec.amount===null || !rec.platform){
-      $('p2pErr').textContent = 'Lending date, amount and platform are needed.'; return;
+    const rec = { holder:$('pl_holder').value.trim(), lendDate:$('pl_date').value, amount:num($('pl_amount').value), platform:$('pl_platform').value.trim() };
+    if(!rec.holder || !rec.lendDate || rec.amount===null || !rec.platform){
+      $('p2pErr').textContent = 'Holder, lending date, amount and platform are needed.'; return;
     }
     const list = p2pAll();
     if(p2pEditing){
@@ -2627,7 +3124,7 @@ function p2pPaintForm(){
 }
 
 function p2pPaintBook(){
-  const list = p2pAll(); const book = $('p2pBook');
+  const list = p2pScoped(); const book = $('p2pBook');
   if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No lending yet</strong>Use Create - New lending above to log one.</div>'; return; }
   const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
 
@@ -2650,10 +3147,11 @@ function p2pPaintBook(){
 
     return '<article class="glass acct"><div class="edge" style="background:var(--gain)"></div>' +
       '<div class="tkt-top"><div><div class="instr">'+esc(l.platform||'Lending')+'</div>' +
-      '<div class="chips"><span class="chip">'+fmtDate(l.lendDate)+'</span>' +
+      '<div class="chips">'+(l.holder?'<span class="chip">'+esc(l.holder)+'</span>':'')+'<span class="chip">'+fmtDate(l.lendDate)+'</span>' +
       '<span class="chip '+(st==='Active'?'st-open':'')+'">'+st+'</span></div></div>' +
       '<div class="pnl"><div class="big">'+inr(out)+'</div><div class="roi">outstanding · '+(roi===null?'ROI —':'ROI '+pct(roi))+'</div></div></div>' +
       '<div class="cells">' +
+        cell2('Holder', esc(l.holder||'—')) +
         cell2('Lending date', fmtDate(l.lendDate)) + cell2('Lending amount (principal)', has(l.amount)?inr(l.amount):'—') +
         cell2('Lending platform', esc(l.platform||'—')) + cell2('Total principal received', inr(prin)) +
         cell2('Total interest received', inr(intr)) + cell2('Return on investment', roi===null?'—':pct(roi)) +
@@ -2696,14 +3194,14 @@ function p2pPaintBook(){
   };
 }
 
-function p2pCsv(){
-  const head = ['Lending date','Lending amount (principal)','Lending platform','Total principal received',
+function p2pCsv(all){
+  const head = ['Holder','Lending date','Lending amount (principal)','Lending platform','Total principal received',
     'Total interest received','Return on investment %','Outstanding principal','Status',
     'Transaction date','Transaction principal','Transaction interest'];
   const rows = [];
-  p2pAll().forEach(l => {
+  (all ? p2pAll() : p2pScoped()).forEach(l => {
     const roi = p2pRoi(l);
-    const base = [l.lendDate||'', has(l.amount)?l.amount:'', l.platform||'', p2pPrincipalReceived(l),
+    const base = [l.holder||'', l.lendDate||'', has(l.amount)?l.amount:'', l.platform||'', p2pPrincipalReceived(l),
       p2pInterestReceived(l), roi===null?'':roi.toFixed(2), p2pOutstanding(l), p2pStatus(l)];
     const txns = (l.txns||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
     if(!txns.length) rows.push(base.concat(['','','']));
@@ -2732,8 +3230,29 @@ function chitPaidInFYPrecise(r, fy){
   return (r.paidTxns||[]).filter(t => t.date >= start && t.date <= end).reduce((s,t)=>s+(t.amount||0),0);
 }
 
-function renderChit(){
+function chitScoped(){
   const list = chitAll();
+  return holderSel.chit ? list.filter(r => (r.holder||'').trim() === holderSel.chit) : list;
+}
+function renderChit(){
+  const allGroups = chitAll();
+  const holders = distinctHolders(allGroups);
+  if(holders.length <= 1) holderSel.chit = holders[0] || null;
+  if(holderSel.chit && !holders.includes(holderSel.chit)) holderSel.chit = null;
+
+  if(holders.length > 1 && !holderSel.chit){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Chit Fund</h2>' +
+      '<p>Pick a holder to see their chit groups.</p></div><div class="eyebrow">'+allGroups.length+' groups</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allGroups, mine => {
+        const net = mine.reduce((s,r)=>s+chitNetPosition(r),0);
+        return (net>=0?'+':'')+inr(net)+' net';
+      }) + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.chit = b.dataset.pick; render(); }));
+    return;
+  }
+
+  const list = chitScoped();
   const paid = list.reduce((s,r)=>s+chitPaidTotal(r),0);
   const div  = list.reduce((s,r)=>s+chitDividendTotal(r),0);
   const recv = list.reduce((s,r)=>s+chitReceivedTotal(r),0);
@@ -2743,6 +3262,7 @@ function renderChit(){
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Chit Fund</h2>' +
     '<p>Log each chit group, then add payment, dividend and chit-received transactions as they happen — every total below is a live sum of that ledger.</p></div>' +
     '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('chit') : '') +
     (list.length ? '<div class="stats-grid">' +
       '<div class="glass stat"><div class="k">Chit groups</div><div class="v">'+list.length+'</div></div>' +
       '<div class="glass stat"><div class="k">Total paid so far</div><div class="v">'+inr(paid)+'</div></div>' +
@@ -2777,6 +3297,7 @@ function chitPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="chitForm" autocomplete="off"><h3>'+(chitEditing?'Editing chit group':'New chit group')+'</h3><div class="grid">' +
+      '<div class="fld"><label for="ch_holder">Holder</label><input type="text" id="ch_holder" value="'+(v('holder')||(holderSel.chit?esc(holderSel.chit):''))+'" placeholder="Name" required></div>' +
       '<div class="fld"><label for="ch_company">Chit company</label><input type="text" id="ch_company" value="'+v('company')+'" placeholder="Shriram Chits" required></div>' +
       '<div class="fld"><label for="ch_groupNo">Group / ticket no</label><input type="text" id="ch_groupNo" value="'+v('groupNo')+'"></div>' +
       '<div class="fld"><label for="ch_chitValue">Chit value</label><input type="number" id="ch_chitValue" step="any" value="'+v('chitValue')+'" placeholder="500000" required></div>' +
@@ -2797,13 +3318,14 @@ function chitPaintForm(){
   $('chitCancel').addEventListener('click', () => { chitFormOpen=false; chitEditing=null; chitPaintForm(); });
   $('chitForm').addEventListener('submit', async e => {
     e.preventDefault();
+    const holder = $('ch_holder').value.trim();
     const company = $('ch_company').value.trim();
     const chitValue = num($('ch_chitValue').value);
     const subscription = num($('ch_subscription').value);
-    if(!company || chitValue===null || subscription===null){
-      $('chitErr').textContent = 'Chit company, chit value and subscription amount are needed.'; return;
+    if(!holder || !company || chitValue===null || subscription===null){
+      $('chitErr').textContent = 'Holder, chit company, chit value and subscription amount are needed.'; return;
     }
-    const rec = { company, groupNo:$('ch_groupNo').value.trim(), chitValue, frequency:$('ch_frequency').value,
+    const rec = { holder, company, groupNo:$('ch_groupNo').value.trim(), chitValue, frequency:$('ch_frequency').value,
       subscription, duration:num($('ch_duration').value), startDate:$('ch_startDate').value, status:$('ch_status').value };
     const list = chitAll();
     if(chitEditing){ const i = list.findIndex(x=>x.id===chitEditing); list[i] = Object.assign({}, list[i], rec); }
@@ -2815,7 +3337,7 @@ function chitPaintForm(){
 }
 
 function chitPaintBook(){
-  const list = chitAll(); const book = $('chitBook'); if(!book) return;
+  const list = chitScoped(); const book = $('chitBook'); if(!book) return;
   if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No chit groups yet</strong>Use the button above to add your first one.</div>'; return; }
   const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
 
@@ -2847,11 +3369,12 @@ function chitPaintBook(){
 
     return '<article class="glass acct"><div class="edge" style="background:var(--gain)"></div>' +
       '<div class="tkt-top"><div><div class="instr">'+esc(r.company||'Chit')+(r.groupNo?' · '+esc(r.groupNo):'')+'</div>' +
-      '<div class="chips"><span class="chip">'+inr(r.chitValue||0)+' chit</span>' +
+      '<div class="chips">'+(r.holder?'<span class="chip">'+esc(r.holder)+'</span>':'')+'<span class="chip">'+inr(r.chitValue||0)+' chit</span>' +
       '<span class="chip">'+periods+'/'+(r.duration||'—')+' '+unit+'</span>' +
       '<span class="chip '+(chitStatus(r)==='Open'?'st-open':'')+'">'+chitStatus(r)+'</span></div></div>' +
       '<div class="pnl"><div class="big">'+(net>=0?'+':'')+inr(net)+'</div><div class="roi">'+(pctR===null?'—':pct(pctR)+' return')+'</div></div></div>' +
       '<div class="cells">' +
+        cell2('Holder', esc(r.holder||'—')) +
         cell2('Chit company', esc(r.company||'—')) + cell2('Group / ticket no', esc(r.groupNo||'—')) +
         cell2('Chit value', inr(r.chitValue||0)) + cell2('Frequency', esc(r.frequency||'Monthly')) +
         cell2('Subscription amount', inr(r.subscription||0)) + cell2('Duration', (r.duration||'—')+' '+unit) +
@@ -2902,15 +3425,15 @@ function chitPaintBook(){
   };
 }
 
-function chitCsv(){
-  const head = ['Chit company','Group/ticket no','Chit value','Frequency','Subscription amount','Duration','Start date','Status',
+function chitCsv(all){
+  const head = ['Holder','Chit company','Group/ticket no','Chit value','Frequency','Subscription amount','Duration','Start date','Status',
     'Total paid so far','Dividend received','Chit Fund Received','%Return','Net position',
     'Txn type','Txn month/week','Txn date','Txn amount'];
   const rows = [];
-  chitAll().forEach(r => {
+  (all ? chitAll() : chitScoped()).forEach(r => {
     const paid = chitPaidTotal(r), div = chitDividendTotal(r), recv = chitReceivedTotal(r);
     const net = div+recv-paid, pctR = chitPctReturn(r);
-    const base = [r.company||'', r.groupNo||'', r.chitValue||'', r.frequency||'Monthly', r.subscription||'',
+    const base = [r.holder||'', r.company||'', r.groupNo||'', r.chitValue||'', r.frequency||'Monthly', r.subscription||'',
       r.duration||'', r.startDate||'', chitStatus(r), paid, div, recv, pctR===null?'':pctR.toFixed(2), net];
     const allTx = [].concat(
       (r.paidTxns||[]).map(t=>Object.assign({type:'Paid'},t)),
@@ -2997,12 +3520,32 @@ function insSchedule(p){
   return rows;
 }
 
-function renderInsurance(){
+function insScoped(){
   const list = insAll();
+  return holderSel.insurance ? list.filter(p => (p.holder||p.policyHolder||'').trim() === holderSel.insurance) : list;
+}
+function renderInsurance(){
+  const allPolicies = insAll();
+  const holders = distinctHolders(allPolicies.map(p => Object.assign({}, p, {holder: p.holder||p.policyHolder})));
+  if(holders.length <= 1) holderSel.insurance = holders[0] || null;
+  if(holderSel.insurance && !holders.includes(holderSel.insurance)) holderSel.insurance = null;
+
+  if(holders.length > 1 && !holderSel.insurance){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Insurance</h2>' +
+      '<p>Pick a policy holder to see their policies.</p></div><div class="eyebrow">'+allPolicies.length+' policies</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allPolicies.map(p => Object.assign({}, p, {holder: p.holder||p.policyHolder})),
+        mine => inr(mine.reduce((s,p)=>s+recurringTotal(p),0))+' invested') + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.insurance = b.dataset.pick; render(); }));
+    return;
+  }
+
+  const list = insScoped();
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Insurance</h2>' +
     '<p>Premium schedule runs to the end of the paying term, grouped by financial year. Half-yearly policies ask for one month and derive the other, six months apart.</p></div>' +
     '<div class="eyebrow" id="count"></div></div>' +
+    (holders.length > 1 ? holderBackRow('insurance') : '') +
     (list.length ? '<div class="stats-grid">' +
       '<div class="glass stat"><div class="k">Policies</div><div class="v">'+list.length+'</div></div>' +
       '<div class="glass stat"><div class="k">Sum assured</div><div class="v pos">'+inr(list.reduce((s,p)=>s+(p.sumAssured||0),0))+'</div></div>' +
@@ -3038,7 +3581,7 @@ function insPaintForm(){
     '<form class="glass panel" id="insForm" autocomplete="off"><h3>'+(insEditing?'Editing policy':'New policy')+'</h3><div class="grid">' +
       '<div class="fld"><label for="i_insuranceType">Insurance type</label><select id="i_insuranceType">'+sel('insuranceType',['Endowment','Money Back','Term','Whole Life','ULIP','Pension','Health','Child Plan'])+'</select></div>' +
       '<div class="fld"><label for="i_platform">Platform</label><input type="text" id="i_platform" value="'+v('platform')+'" placeholder="LIC"></div>' +
-      '<div class="fld"><label for="i_policyHolder">Policy holder</label><input type="text" id="i_policyHolder" value="'+v('policyHolder')+'" required></div>' +
+      '<div class="fld"><label for="i_policyHolder">Policy holder</label><input type="text" id="i_policyHolder" value="'+(v('policyHolder')||(holderSel.insurance?esc(holderSel.insurance):''))+'" required></div>' +
       '<div class="fld"><label for="i_policyNo">Policy no</label><input type="text" id="i_policyNo" value="'+v('policyNo')+'" required></div>' +
       '<div class="fld"><label for="i_policyName">Policy name</label><input type="text" id="i_policyName" value="'+v('policyName')+'"></div>' +
       '<div class="fld"><label for="i_sumAssured">Sum assured</label><input type="number" id="i_sumAssured" step="any" value="'+v('sumAssured')+'" placeholder="500000"></div>' +
@@ -3080,7 +3623,7 @@ function insPaintForm(){
     const policyHolder = $('i_policyHolder').value.trim(), policyNo = $('i_policyNo').value.trim(), commencement = $('i_commencement').value;
     if(!policyHolder || !policyNo || !commencement){ $('insErr').textContent = 'Policy holder, policy no and commencement date are needed.'; return; }
     const rec = {
-      insuranceType:$('i_insuranceType').value, platform:$('i_platform').value.trim(), policyHolder, policyNo,
+      holder:policyHolder, insuranceType:$('i_insuranceType').value, platform:$('i_platform').value.trim(), policyHolder, policyNo,
       policyName:$('i_policyName').value.trim(), sumAssured:num($('i_sumAssured').value), nominee:$('i_nominee').value.trim(),
       policyTerm:num($('i_policyTerm').value), commencement, ppt:num($('i_ppt').value), lastPremium:$('i_lastPremium').value,
       maturity:$('i_maturity').value, investType:$('i_investType').value, frequency:$('i_frequency').value,
@@ -3098,7 +3641,7 @@ function insPaintForm(){
 }
 
 function insPaintBook(){
-  const list = insAll(); const book = $('insBook');
+  const list = insScoped(); const book = $('insBook');
   if(!list.length){ book.innerHTML = '<div class="glass empty"><strong>No policy yet</strong>Create one to see its premium schedule.</div>'; return; }
   const cell2 = (k,v) => '<div><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
 
@@ -3210,12 +3753,12 @@ function insPaintBook(){
   };
 }
 
-function insuranceCsv(){
+function insuranceCsv(all){
   const head = ['Insurance type','Platform','Policy holder','Policy no','Policy name','Sum assured','Nominee','Policy term',
     'Policy commencement date','Premium paying term','Last premium','Maturity','Investment type','Frequency','Premium',
     'Invested before FY 2026','Total invested','Bonus received','Instalment','Due date','Instalment amount','Instalment status','Paid on'];
   const rows = [];
-  insAll().forEach(p => {
+  (all ? insAll() : insScoped()).forEach(p => {
     const base = [p.insuranceType||'', p.platform||'', p.policyHolder||'', p.policyNo||'', p.policyName||'', has(p.sumAssured)?p.sumAssured:'',
       p.nominee||'', has(p.policyTerm)?p.policyTerm:'', p.commencement||'', has(p.ppt)?p.ppt:'', p.lastPremium||'', p.maturity||'',
       p.investType||'', p.frequency||'', has(p.premium)?p.premium:'', has(p.baseInvested)?p.baseInvested:'', recurringTotal(p), insBonusTotal(p)];
