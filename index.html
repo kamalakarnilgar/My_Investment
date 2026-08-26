@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -72,6 +73,18 @@
   .navbtn[aria-current="true"]{background:var(--glass-hi);color:var(--ink);font-weight:500}
   .navbtn .n{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
   .railfoot{margin-top:14px;padding-top:12px;border-top:1px solid var(--stroke);display:flex;gap:8px;flex-wrap:wrap}
+  .dbpanel{padding:12px;margin-bottom:14px}
+  .dbrow{display:flex;align-items:center;gap:8px}
+  .dbdot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+  .dbdot.on{background:var(--gain);box-shadow:0 0 6px var(--gain)}
+  .dbdot.off{background:var(--loss)}
+  .dbtext{font-family:var(--mono);font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dbbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .dbbtn{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:6px 10px;
+    border-radius:999px;background:var(--glass);border:1px solid var(--stroke);color:var(--ink);cursor:pointer}
+  .dbbtn:hover{background:var(--glass-hi);border-color:var(--accent)}
+  .dbbtn:disabled{opacity:.5;cursor:default}
+  .dbmsg{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;min-height:12px}
   .themeBtn{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);
     background:var(--glass);border:1px solid var(--stroke);border-radius:999px;padding:8px 13px;cursor:pointer}
   .themeBtn:hover{background:var(--glass-hi)}
@@ -288,6 +301,17 @@
     <div class="brand">
       <div class="eyebrow">Portfolio · V7</div>
       <h1>Investment</h1>
+    </div>
+    <div class="glass dbpanel" id="dbpanel">
+      <div class="dbrow"><span class="dbdot" id="dbDot"></span><span class="dbtext" id="dbSheetName">Checking connection…</span></div>
+      <div class="dbbtns">
+        <button type="button" class="dbbtn" id="pullBtn" title="Reload from the Sheet">Pull</button>
+        <button type="button" class="dbbtn" id="pushBtn" title="Force-save to the Sheet">Push</button>
+        <button type="button" class="dbbtn" id="xlsxBtn" title="Download everything as an Excel file">Extract to Excel</button>
+        <button type="button" class="dbbtn" id="xlsxUploadBtn" title="Restore from a previously exported Excel file">Upload Excel</button>
+        <input type="file" id="xlsxFile" accept=".xlsx" style="display:none">
+      </div>
+      <div class="dbmsg" id="dbMsg"></div>
     </div>
     <div class="railnav" id="nav"></div>
     <div class="railfoot">
@@ -508,21 +532,52 @@ function signIn(){
   });
 }
 
+let dbConnected = false, dbLoadError = null, sheetTitle = null;
+const CELL_SAFE_LIMIT = 46000; // Sheets caps a cell at 50,000 chars — stay well clear
+
+async function fetchSheetName(){
+  try{
+    const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'?fields=properties.title', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    if(res.ok){ const d = await res.json(); sheetTitle = d.properties && d.properties.title; }
+  }catch(e){ /* non-critical */ }
+  updateDbStatus();
+}
+
 async function loadDB(){
+  dbLoadError = null;
   try{
     const res = await fetch(sheetsUrl(), {
       headers: { 'Authorization': 'Bearer ' + accessToken }
     });
-    if(res.status === 401){ accessToken = null; throw new Error('auth-expired'); }
+    if(res.status === 401){ accessToken = null; dbConnected = false; throw new Error('auth-expired'); }
+    if(!res.ok){ dbConnected = false; dbLoadError = 'Could not reach the Sheet (HTTP '+res.status+').'; return; }
     const data = await res.json();
     const cell = data.values && data.values[0] && data.values[0][0];
-    if(cell) DB = Object.assign({capital:null, records:{}}, JSON.parse(cell));
-  }catch(e){ /* first run, or empty sheet — start fresh */ }
+    dbConnected = true;
+    if(cell){
+      try{ DB = Object.assign({capital:null, records:{}}, JSON.parse(cell)); }
+      catch(parseErr){
+        dbLoadError = 'The saved data could not be read — it may have been cut off (Sheets caps a cell at 50,000 characters). Nothing was overwritten; use Pull to try again, or Upload Excel to restore a backup.';
+      }
+    }
+    // else: cell genuinely empty — first run, DB stays at its default
+  }catch(e){ dbConnected = false; if(!dbLoadError) dbLoadError = 'Could not connect to the Sheet.'; }
   if(!DB.records) DB.records = {};
+  updateDbStatus();
 }
 
 let saveTimer = null, saveNote = 'Saved to Google Sheet';
 async function saveDB(){
+  const json = JSON.stringify(DB);
+  if(json.length > CELL_SAFE_LIMIT){
+    saveNote = 'Not saved — data too large for one Sheet cell ('+json.length.toLocaleString()+' / 50,000). Use Extract to Excel to back up now.';
+    dbConnected = false;
+    const el = $('saveState'); if(el) el.textContent = saveNote;
+    updateDbStatus();
+    return;
+  }
   try{
     if(!accessToken) await signIn();
     const res = await fetch(sheetsUrl() + '?valueInputOption=RAW', {
@@ -531,7 +586,7 @@ async function saveDB(){
         'Authorization': 'Bearer ' + accessToken,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ values: [[ JSON.stringify(DB) ]] })
+      body: JSON.stringify({ values: [[ json ]] })
     });
     if(res.status === 401){
       accessToken = null;
@@ -539,10 +594,21 @@ async function saveDB(){
       return saveDB();
     }
     saveNote = res.ok ? 'Saved to Google Sheet' : 'Not saved — check connection';
-  }catch(e){ saveNote = 'Not saved — check connection'; }
+    dbConnected = res.ok;
+  }catch(e){ saveNote = 'Not saved — check connection'; dbConnected = false; }
   const el = $('saveState'); if(el) el.textContent = saveNote;
+  updateDbStatus();
 }
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveDB, 350); }
+function updateDbStatus(){
+  const dot = $('dbDot'), txt = $('dbSheetName'), msg = $('dbMsg');
+  if(!dot) return;
+  dot.className = 'dbdot ' + (dbConnected ? 'on' : 'off');
+  txt.textContent = sheetTitle ? sheetTitle : (dbConnected ? 'Connected' : 'Not connected');
+  txt.title = sheetTitle || '';
+  msg.textContent = dbLoadError || '';
+  msg.style.color = dbLoadError ? 'var(--loss)' : '';
+}
 const recs = id => (DB.records[id] = DB.records[id] || []);
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
@@ -4973,14 +5039,92 @@ $('signinBtn').addEventListener('click', async () => {
     await signIn();
     $('signinMsg').textContent = 'Loading your data…';
     await loadDB();
+    fetchSheetName();
     if(DB.theme === 'dawn'){ document.body.classList.add('dawn'); $('themeBtn').textContent = 'Night'; }
     $('signinGate').style.display = 'none';
     $('appShell').style.display = '';
     render();
+    if(dbLoadError) setTimeout(() => alert(dbLoadError), 300);
   }catch(e){
     $('signinMsg').textContent = 'Sign-in failed. Please try again.';
     $('signinBtn').disabled = false;
   }
+});
+
+/* ---------- Pull / Push / Extract to Excel / Upload Excel ---------- */
+$('pullBtn').addEventListener('click', async () => {
+  if(!confirm('Reload from the Google Sheet? Anything on screen that hasn\u2019t saved yet will be replaced.')) return;
+  $('dbMsg').textContent = 'Pulling…'; $('dbMsg').style.color = '';
+  await loadDB();
+  render();
+  $('dbMsg').textContent = dbLoadError ? dbLoadError : 'Pulled the latest data from the Sheet.';
+  $('dbMsg').style.color = dbLoadError ? 'var(--loss)' : 'var(--gain)';
+});
+$('pushBtn').addEventListener('click', async () => {
+  $('dbMsg').textContent = 'Pushing…'; $('dbMsg').style.color = '';
+  await saveDB();
+  if(dbConnected){ $('dbMsg').textContent = 'Pushed everything to the Sheet.'; $('dbMsg').style.color = 'var(--gain)'; }
+});
+$('xlsxBtn').addEventListener('click', () => {
+  try{
+    const wb = XLSX.utils.book_new();
+    MODULES.forEach(m => {
+      if(m.id === 'credentials') return; // never export passwords into a shareable file by default
+      let rows = null;
+      if(m.custom === 'fno') rows = fnoCsv(true);
+      else if(m.custom === 'crypto') rows = cryptoCsv(true);
+      else if(m.custom === 'equity') rows = equityCsv(true);
+      else if(m.custom === 'chit') rows = chitCsv(true);
+      else if(m.custom === 'fd') rows = fdCsv(true);
+      else if(m.custom === 'rd') rows = rdCsv(true);
+      else if(m.custom === 'p2p') rows = p2pCsv(true);
+      else if(m.custom === 'insurance') rows = insuranceCsv(true);
+      else if(m.custom === 'ppf') rows = ppfCsv();
+      else if(m.custom === 'ssy') rows = ssyCsv();
+      else if(m.custom === 'bonds') rows = bondsCsv();
+      else if(m.custom === 'sip' || m.custom === 'etf') rows = sipCsv(m.id);
+      else if(m.custom === 'apy' || m.custom === 'nps' || m.custom === 'epf') rows = genRecCsv(m.id);
+      else if(m.custom === 'maturity') rows = maturityCsv();
+      else rows = csvOf(m);
+      if(!rows || rows.length < 2) return; // skip empty modules
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, m.name.slice(0,31));
+    });
+    // Hidden-ish raw backup sheet — lets Upload Excel restore everything exactly, not just what fits in columns.
+    // Chunked across rows since Excel also caps a single cell (~32,767 chars) and this file could exceed that.
+    const json = JSON.stringify(DB);
+    const CHUNK = 30000;
+    const chunks = [];
+    for(let i=0; i<json.length; i+=CHUNK) chunks.push([json.slice(i, i+CHUNK)]);
+    const backupWs = XLSX.utils.aoa_to_sheet([['DO NOT EDIT — used by Upload Excel to restore your data'], ...chunks]);
+    XLSX.utils.book_append_sheet(wb, backupWs, 'RawBackup');
+    XLSX.writeFile(wb, 'investment-tracker-'+today()+'.xlsx');
+  }catch(e){
+    alert('Could not build the Excel file: ' + e.message);
+  }
+});
+$('xlsxUploadBtn').addEventListener('click', () => $('xlsxFile').click());
+$('xlsxFile').addEventListener('change', async e => {
+  const file = e.target.files[0]; if(!file) return;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const sheet = wb.Sheets['RawBackup'];
+    if(!sheet){ alert('This file doesn\u2019t have the backup data Upload Excel needs — it must be one exported from Extract to Excel.'); return; }
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1});
+    const json = (rows||[]).slice(1).map(r => r[0] || '').join('');
+    if(!json){ alert('Could not find the backup data inside this file.'); return; }
+    const parsed = JSON.parse(json);
+    if(!confirm('This replaces everything currently in the app and the Google Sheet with the contents of this file. Continue?')) return;
+    DB = Object.assign({capital:null, records:{}}, parsed);
+    await saveDB();
+    render(); buildNav();
+    $('dbMsg').textContent = 'Restored from '+file.name+' and pushed to the Sheet.';
+    $('dbMsg').style.color = 'var(--gain)';
+  }catch(err){
+    alert('Could not read that file: ' + err.message);
+  }
+  e.target.value = '';
 });
 </script>
 </body>
