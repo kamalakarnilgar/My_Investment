@@ -58,32 +58,39 @@
   .brand{padding:2px 8px 14px}
   .brand .eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
   .brand h1{margin:3px 0 0;font-size:21px;font-weight:600;letter-spacing:-.02em}
+  .navic{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;
+    background:var(--glass);font-size:14px;flex-shrink:0}
   .navgroup{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);
     padding:12px 8px 6px}
-  .navfolder{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;
-    background:transparent;border:none;color:var(--ink);font-family:var(--sans);font-size:13.5px;font-weight:600;
-    padding:10px 8px;border-radius:10px;cursor:pointer;margin-top:6px}
+  .navfolder{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    background:transparent;border:none;color:var(--ink);font-family:var(--sans);font-size:14px;font-weight:700;
+    padding:9px 8px;border-radius:12px;cursor:pointer;margin-top:6px}
   .navfolder:hover{background:var(--glass-hi)}
-  .navfolder .chev{font-family:var(--mono);font-size:11px;color:var(--muted)}
-  .navfolder .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-left:auto;margin-right:4px}
-  .navbtn{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;
-    background:transparent;border:none;color:var(--muted);font-family:var(--sans);font-size:13.5px;
-    padding:8px 10px;border-radius:10px;cursor:pointer}
+  .navfolder .navlabel{flex:1}
+  .navfolder .chev{font-family:var(--mono);font-size:10px;color:var(--muted);transition:transform .15s ease}
+  .navfolder .chev.open{transform:rotate(90deg)}
+  .navfolder .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-right:2px}
+  .navbtn{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    background:transparent;border:none;color:var(--muted);font-family:var(--sans);font-size:14px;font-weight:600;
+    padding:8px 8px;border-radius:12px;cursor:pointer}
+  .navbtn span:nth-child(2){flex:1}
   .navbtn:hover{background:var(--glass-hi);color:var(--ink)}
-  .navbtn[aria-current="true"]{background:var(--glass-hi);color:var(--ink);font-weight:500}
+  .navbtn[aria-current="true"]{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-weight:700}
+  .navbtn[aria-current="true"] .navic{background:color-mix(in srgb,var(--accent) 22%,transparent)}
   .navbtn .n{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
   .railfoot{margin-top:14px;padding-top:12px;border-top:1px solid var(--stroke);display:flex;gap:8px;flex-wrap:wrap}
-  .dbpanel{padding:12px;margin-bottom:14px}
-  .dbrow{display:flex;align-items:center;gap:8px}
-  .dbdot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
-  .dbdot.on{background:var(--gain);box-shadow:0 0 6px var(--gain)}
-  .dbdot.off{background:var(--loss)}
-  .dbtext{font-family:var(--mono);font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .dbbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .dbpanel{padding:12px;margin-top:14px}
+  .dbbtns{display:flex;flex-wrap:wrap;gap:6px}
   .dbbtn{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:6px 10px;
     border-radius:999px;background:var(--glass);border:1px solid var(--stroke);color:var(--ink);cursor:pointer}
   .dbbtn:hover{background:var(--glass-hi);border-color:var(--accent)}
   .dbbtn:disabled{opacity:.5;cursor:default}
+  .dbstatus{margin-top:12px;padding-top:10px;border-top:1px solid var(--stroke);display:flex;flex-direction:column;gap:7px}
+  .dbline{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .dbline span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dbdot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+  .dbdot.on{background:var(--gain);box-shadow:0 0 6px var(--gain)}
+  .dbdot.off{background:var(--loss)}
   .dbmsg{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;min-height:12px}
   .themeBtn{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);
     background:var(--glass);border:1px solid var(--stroke);border-radius:999px;padding:8px 13px;cursor:pointer}
@@ -268,6 +275,7 @@
     .navfolder{white-space:nowrap;width:auto;margin-top:0;border-radius:999px;padding:8px 14px;
       background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid color-mix(in srgb,var(--accent) 45%,transparent)}
     .navfolder .n{margin-left:0}
+    .navic{width:20px;height:20px;font-size:12px;border-radius:6px}
     .grid{grid-template-columns:repeat(2,1fr)}
     .cells{grid-template-columns:repeat(2,1fr)}
   }
@@ -302,21 +310,26 @@
       <div class="eyebrow">Portfolio · V7</div>
       <h1>Investment</h1>
     </div>
+    <div class="railnav" id="nav"></div>
+    <div class="railfoot">
+      <button type="button" class="themeBtn" id="themeBtn">Dawn</button>
+      <button type="button" class="themeBtn" id="backupBtn">Backup</button>
+    </div>
     <div class="glass dbpanel" id="dbpanel">
-      <div class="dbrow"><span class="dbdot" id="dbDot"></span><span class="dbtext" id="dbSheetName">Checking connection…</span></div>
       <div class="dbbtns">
         <button type="button" class="dbbtn" id="pullBtn" title="Reload from the Sheet">Pull</button>
         <button type="button" class="dbbtn" id="pushBtn" title="Force-save to the Sheet">Push</button>
         <button type="button" class="dbbtn" id="xlsxBtn" title="Download everything as an Excel file">Extract to Excel</button>
         <button type="button" class="dbbtn" id="xlsxUploadBtn" title="Restore from a previously exported Excel file">Upload Excel</button>
+        <button type="button" class="dbbtn" id="jsonUploadBtn" title="Restore from a .json backup downloaded via the Backup button">Restore Backup</button>
         <input type="file" id="xlsxFile" accept=".xlsx" style="display:none">
+        <input type="file" id="jsonFile" accept=".json" style="display:none">
+      </div>
+      <div class="dbstatus">
+        <div class="dbline"><span class="dbdot" id="dbDot"></span><span id="dbSheetName">Checking connection…</span></div>
+        <div class="dbline"><span class="dbdot" id="xlsxDot"></span><span id="xlsxStatus">Excel backup: not exported this session</span></div>
       </div>
       <div class="dbmsg" id="dbMsg"></div>
-    </div>
-    <div class="railnav" id="nav"></div>
-    <div class="railfoot">
-      <button type="button" class="themeBtn" id="themeBtn">Dawn</button>
-      <button type="button" class="themeBtn" id="backupBtn">Backup</button>
     </div>
   </aside>
   <main id="main"></main>
@@ -438,64 +451,64 @@ function tradedSecurity(id, name, blurb, stockLabel){
 
 const MODULES = [
   {
-    id:'apy', name:'APY', group:'Retirement', blurb:'Atal Pension Yojana — grouped by holder, monthly contribution schedule.', custom:'apy'
+    id:'apy', name:'APY', group:'Retirement', icon:'\uD83D\uDC74', blurb:'Atal Pension Yojana — grouped by holder, monthly contribution schedule.', custom:'apy'
   },
   {
-    id:'bonds', name:'Bonds', group:'Debt', blurb:'Bond holdings by holder — purchase, coupon schedule and redemption.', custom:'bonds'
+    id:'bonds', name:'Bonds', group:'Debt', icon:'\uD83D\uDCDC', blurb:'Bond holdings by holder — purchase, coupon schedule and redemption.', custom:'bonds'
   },
   {
-    id:'chit', name:'Chit Fund', group:'Alternative',
+    id:'chit', name:'Chit Fund', group:'Alternative', icon:'\uD83E\uDDE7',
     blurb:'Chit groups, subscriptions, dividends and chit-fund payouts — tracked as a transaction ledger.', custom:'chit'
   },
   {
-    id:'epf', name:'EPF', group:'Retirement', blurb:'Provident fund — grouped by holder, monthly contribution schedule.', custom:'epf'
+    id:'epf', name:'EPF', group:'Retirement', icon:'\uD83C\uDFE2', blurb:'Provident fund — grouped by holder, monthly contribution schedule.', custom:'epf'
   },
   {
-    id:'equity', name:'Equity Stocks', group:'Market',
+    id:'equity', name:'Equity Stocks', group:'Market', icon:'\uD83D\uDCC8',
     blurb:'Stock holdings as a buy/sell ledger — add to a position over time, sell partially or fully, weighted-average cost.', custom:'equity'
   },
   {
-    id:'maturity', name:'Maturity Tracker', group:'Planning',
+    id:'maturity', name:'Maturity Tracker', group:'Planning', icon:'\u23F3',
     blurb:'Every FD, RD, Bond, PPF and SSY maturity date in one sorted list, plus any other maturity investment you add by hand.', custom:'maturity'
   },
   {
-    id:'etf', name:'ETF', group:'Market', blurb:'ETF held as recurring SIP legs — folio-wise schedule and investment.', custom:'etf'
+    id:'etf', name:'ETF', group:'Market', icon:'\uD83D\uDCE6', blurb:'ETF held as recurring SIP legs — folio-wise schedule and investment.', custom:'etf'
   },
   {
-    id:'fno', name:'F&O Trading', group:'Market', blurb:'Options book with premium, margin, P&L and monthly returns.', custom:'fno'
+    id:'fno', name:'F&O Trading', group:'Market', icon:'\uD83D\uDCCA', blurb:'Options book with premium, margin, P&L and monthly returns.', custom:'fno'
   },
   {
-    id:'crypto', name:'Crypto', group:'Market', blurb:'Same book as F&O, priced in dollars — profit converts to rupees at a fixed rate.', custom:'crypto'
+    id:'crypto', name:'Crypto', group:'Market', icon:'\u20BF', blurb:'Same book as F&O, priced in dollars — profit converts to rupees at a fixed rate.', custom:'crypto'
   },
   {
-    id:'fd', name:'FD', group:'Debt', blurb:'Fixed deposits — tenure, maturity and premature closure.', custom:'fd'
+    id:'fd', name:'FD', group:'Debt', icon:'\uD83C\uDFE6', blurb:'Fixed deposits — tenure, maturity and premature closure.', custom:'fd'
   },
-  tradedSecurity('ipo','IPO','IPO allotments — track from listing to exit.','Issue'),
+  Object.assign(tradedSecurity('ipo','IPO','IPO allotments — track from listing to exit.','Issue'), {icon:'\uD83D\uDE80'}),
   {
-    id:'insurance', name:'Insurance', group:'Protection', blurb:'Policies, premium schedule to the paying-term end, and bonuses received.', custom:'insurance'
-  },
-  {
-    id:'nps', name:'NPS', group:'Retirement', blurb:'National Pension System — grouped by holder, monthly contribution schedule.', custom:'nps'
+    id:'insurance', name:'Insurance', group:'Protection', icon:'\uD83D\uDEE1\uFE0F', blurb:'Policies, premium schedule to the paying-term end, and bonuses received.', custom:'insurance'
   },
   {
-    id:'p2p', name:'P2P Lending', group:'Alternative', blurb:'Money lent out — free-form transactions for principal and interest received.', custom:'p2p'
+    id:'nps', name:'NPS', group:'Retirement', icon:'\uD83E\uDDD3', blurb:'National Pension System — grouped by holder, monthly contribution schedule.', custom:'nps'
   },
   {
-    id:'ppf', name:'PPF', group:'Debt', blurb:'Public Provident Fund accounts, contribution schedule and maturity.', custom:'ppf'
+    id:'p2p', name:'P2P Lending', group:'Alternative', icon:'\uD83E\uDD1D', blurb:'Money lent out — free-form transactions for principal and interest received.', custom:'p2p'
   },
   {
-    id:'rd', name:'RD', group:'Debt', blurb:'Recurring deposits — instalment schedule, maturity and premature closure.', custom:'rd'
+    id:'ppf', name:'PPF', group:'Debt', icon:'\uD83C\uDFE6', blurb:'Public Provident Fund accounts, contribution schedule and maturity.', custom:'ppf'
   },
   {
-    id:'sip', name:'SIP (Mutual Funds)', group:'Market', blurb:'Grouped by holder, then by folio — recurring instalment schedule and investment.', custom:'sip'
+    id:'rd', name:'RD', group:'Debt', icon:'\uD83D\uDD01', blurb:'Recurring deposits — instalment schedule, maturity and premature closure.', custom:'rd'
   },
   {
-    id:'ssy', name:'SSY', group:'Debt', blurb:'Sukanya Samriddhi account for the girl child — one account, contribution schedule and maturity.', custom:'ssy'
+    id:'sip', name:'SIP (Mutual Funds)', group:'Market', icon:'\uD83D\uDD04', blurb:'Grouped by holder, then by folio — recurring instalment schedule and investment.', custom:'sip'
+  },
+  {
+    id:'ssy', name:'SSY', group:'Debt', icon:'\uD83D\uDC67', blurb:'Sukanya Samriddhi account for the girl child — one account, contribution schedule and maturity.', custom:'ssy'
   }
 ];
 MODULES.forEach(m => { m.folder = 'Investment'; });
 MODULES.push(
-  { id:'credentials', name:'Credentials', group:'Vault', folder:'Credentials',
+  { id:'credentials', name:'Credentials', group:'Vault', folder:'Credentials', icon:'\uD83D\uDD10',
     blurb:'Store logins for your investment platforms — broker, bank, demat, fund houses — with a password-strength check.', custom:'credentials' }
 );
 MODULES.sort((a,b) => a.name.localeCompare(b.name));
@@ -600,14 +613,22 @@ async function saveDB(){
   updateDbStatus();
 }
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveDB, 350); }
+let lastExcelExport = null;
+function nowHMS(){ return new Date().toTimeString().slice(0,8); }
 function updateDbStatus(){
   const dot = $('dbDot'), txt = $('dbSheetName'), msg = $('dbMsg');
   if(!dot) return;
   dot.className = 'dbdot ' + (dbConnected ? 'on' : 'off');
-  txt.textContent = sheetTitle ? sheetTitle : (dbConnected ? 'Connected' : 'Not connected');
+  const label = sheetTitle ? sheetTitle : 'Google Sheet';
+  txt.textContent = dbConnected ? label+' — synced '+nowHMS() : label+' — not connected';
   txt.title = sheetTitle || '';
   msg.textContent = dbLoadError || '';
   msg.style.color = dbLoadError ? 'var(--loss)' : '';
+  const xd = $('xlsxDot'), xt = $('xlsxStatus');
+  if(xd){
+    xd.className = 'dbdot ' + (lastExcelExport ? 'on' : '');
+    xt.textContent = lastExcelExport ? 'Excel backup: exported '+lastExcelExport : 'Excel backup: not exported this session';
+  }
 }
 const recs = id => (DB.records[id] = DB.records[id] || []);
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -618,7 +639,8 @@ const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function buildNav(){
   const folders = {};
   MODULES.forEach(m => { (folders[m.folder] = folders[m.folder] || []).push(m); });
-  let html = '<button class="navbtn" data-go="home"' + (route==='home'?' aria-current="true"':'') + '><span>Overview</span></button>';
+  let html = '<button class="navbtn" data-go="home"' + (route==='home'?' aria-current="true"':'') + '>' +
+    '<span class="navic">\uD83C\uDFE0</span><span>Overview</span></button>';
   const order = ['Investment','Credentials'];
   const keys = Object.keys(folders).sort((a,b) => {
     const ia = order.indexOf(a), ib = order.indexOf(b);
@@ -628,8 +650,8 @@ function buildNav(){
     const open = navFolderState[f] !== false;
     const count = folders[f].reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
     html += '<button type="button" class="navfolder" data-folder="'+esc(f)+'" aria-expanded="'+open+'">' +
-      '<span>'+(f==='Credentials'?'\uD83D\uDD12 ':'\uD83D\uDCC1 ')+esc(f)+'</span>' +
-      '<span class="n">'+(count||'')+'</span><span class="chev">'+(open?'\u25BE':'\u25B8')+'</span></button>';
+      '<span class="navic">'+(f==='Credentials'?'\uD83D\uDD10':'\uD83D\uDCB0')+'</span><span class="navlabel">'+esc(f)+'</span>' +
+      '<span class="n">'+(count||'')+'</span><span class="chev '+(open?'open':'')+'">\u25B8</span></button>';
     if(!open) return;
     const groups = {};
     folders[f].forEach(m => { (groups[m.group] = groups[m.group] || []).push(m); });
@@ -638,7 +660,7 @@ function buildNav(){
       groups[g].forEach(m => {
         const n = (DB.records[m.id]||[]).length;
         html += '<button class="navbtn" data-go="'+m.id+'"'+(route===m.id?' aria-current="true"':'')+'>' +
-                '<span>'+esc(m.name)+'</span><span class="n">'+(n||'')+'</span></button>';
+                '<span class="navic">'+(m.icon||'\u2022')+'</span><span>'+esc(m.name)+'</span><span class="n">'+(n||'')+'</span></button>';
       });
     });
   });
@@ -821,8 +843,7 @@ function renderModule(m){
 
     '<div class="book" id="book"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · ' +
-    '<button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   // wiring
   const form = $('form');
@@ -837,11 +858,6 @@ function renderModule(m){
   }));
   $('book').addEventListener('click', e => rowAction(e, m));
   $('exportBtn').addEventListener('click', () => exportModule(m));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every entry in '+m.name+'? This cannot be undone.')) return;
-    DB.records[m.id] = []; await saveDB(); render();
-  });
 
   resetForm(m);
   renderList(m);
@@ -1104,7 +1120,7 @@ function renderFno(){
     '<div class="book" id="book"></div>' +
 
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   if(has(DB.capital)) $('capital').value = DB.capital;
   $('capital').addEventListener('input', () => { DB.capital = num($('capital').value); saveSoon(); fnoRefresh(); });
@@ -1121,11 +1137,6 @@ function renderFno(){
   }));
   $('book').addEventListener('click', fnoRowAction);
   $('exportBtn').addEventListener('click', () => download('investment-fno.csv', fnoCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!fno().length) return;
-    if(!confirm('Delete every trade in F&O Trading? This cannot be undone.')) return;
-    DB.records.fno = []; await saveDB(); render();
-  });
 
   fnoReset();
   fnoRefresh();
@@ -1439,7 +1450,7 @@ function renderCrypto(){
     '<div class="book" id="cbook"></div>' +
 
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="cexportBtn">Export CSV</button> · <button type="button" id="cclearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="cexportBtn">Export CSV</button></span></div>';
 
   if(has(DB.capitalCrypto)) $('cap_capital').value = DB.capitalCrypto;
   $('cap_capital').addEventListener('input', () => { DB.capitalCrypto = num($('cap_capital').value); saveSoon(); cryptoRefresh(); });
@@ -1457,11 +1468,6 @@ function renderCrypto(){
   }));
   $('cbook').addEventListener('click', cryptoRowAction);
   $('cexportBtn').addEventListener('click', () => download('investment-crypto.csv', cryptoCsv()));
-  $('cclearBtn').addEventListener('click', async () => {
-    if(!cryptoAll().length) return;
-    if(!confirm('Delete every trade in Crypto? This cannot be undone.')) return;
-    DB.records.crypto = []; await saveDB(); render();
-  });
 
   cryptoReset();
   cryptoRefresh();
@@ -1934,20 +1940,13 @@ function bondsPaintBody(){
   html += '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="bNew">' + (bond ? 'Purchase another bond' : 'Purchase Bond') + '</button></div>' +
     '<div id="bFormWrap"></div><div id="bBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
   body.innerHTML = html;
 
   if($('bBack1')) $('bBack1').addEventListener('click', () => { bondsSelHolder = null; bondsSelId = null; bondsFormOpen = false; bondsPaintBody(); });
   if($('bBack2')) $('bBack2').addEventListener('click', () => { bondsSelId = null; bondsFormOpen = false; bondsPaintBody(); });
   $('bNew').addEventListener('click', () => { bondsEditing = null; bondsFormOpen = true; bondsPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-bonds.csv', bondsCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!scoped.length) return;
-    if(!confirm('Delete ' + (bondsSelHolder ? "every bond of "+bondsSelHolder : 'every bond') + '? This cannot be undone.')) return;
-    const keep = new Set(scoped.map(b=>b.id));
-    DB.records.bonds = list.filter(b => !keep.has(b.id));
-    bondsSelId = null; await saveDB(); render();
-  });
 
   bondsPaintForm();
   if(bond) bondsPaintDetail(bond);
@@ -2222,19 +2221,12 @@ function ppfPaintBody(){
     (scoped.length ? 'Add another account' : 'Create PPF account') + '</button></div>' +
     '<div id="ppfFormWrap"></div><div id="ppfBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   body.innerHTML = html;
   if($('ppfBack')) $('ppfBack').addEventListener('click', () => { ppfSelectedHolder = null; ppfFormOpen = false; render(); });
   $('ppfNew').addEventListener('click', () => { ppfEditing = null; ppfFormOpen = true; ppfPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-ppf.csv', ppfCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!scoped.length) return;
-    if(!confirm('Delete ' + (ppfSelectedHolder ? "every PPF account of "+ppfSelectedHolder : 'every PPF account') + '? This cannot be undone.')) return;
-    const keep = new Set(scoped.map(a=>a.id));
-    DB.records.ppf = list.filter(a => !keep.has(a.id));
-    await saveDB(); render();
-  });
 
   ppfPaintForm();
   ppfPaintBook(scoped, fy);
@@ -2535,19 +2527,12 @@ function ssyPaintBody(){
     '<div id="ssyFormWrap"></div>' +
     '<div id="ssyBook">' + scoped.map(a => acctCardHTML(a, fy, 's')).join('') + '</div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   body.innerHTML = html;
   if($('ssyBack')) $('ssyBack').addEventListener('click', () => { holderSel.ssy = null; ssyFormOpen = false; render(); });
   $('ssyNew').addEventListener('click', () => { ssyEditing = null; ssyFormOpen = true; ssyPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-ssy.csv', ssyCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!scoped.length) return;
-    if(!confirm('Delete '+(holderSel.ssy?'the SSY account for '+holderSel.ssy:'every SSY account')+'? This cannot be undone.')) return;
-    const keep = new Set(scoped.map(a=>a.id));
-    DB.records.ssy = list.filter(a => !keep.has(a.id));
-    await saveDB(); render();
-  });
   $('ssyBook').onclick = e => acctBookClick(e, 'ssy', ssyAll, () => { ssyPaintBody(); }, id => { ssyEditing = id; ssyFormOpen = true; ssyPaintForm(); });
   ssyPaintForm();
 }
@@ -2697,15 +2682,10 @@ function renderFd(){
       (list.length ? 'Create another FD' : 'Create FD') + '</button></div>' +
     '<div id="fdFormWrap"></div><div id="fdBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('fdNew').addEventListener('click', () => { fdEditing = null; fdFormOpen = true; fdPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-fd.csv', fdCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every FD? This cannot be undone.')) return;
-    DB.records.fd = []; await saveDB(); render();
-  });
   fdPaintForm();
   fdPaintBook();
 }
@@ -2887,15 +2867,10 @@ function renderRd(){
       (list.length ? 'Create another RD' : 'Create RD') + '</button></div>' +
     '<div id="rdFormWrap"></div><div id="rdBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('rdNew').addEventListener('click', () => { rdEditing = null; rdFormOpen = true; rdPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-rd.csv', rdCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every RD? This cannot be undone.')) return;
-    DB.records.rd = []; await saveDB(); render();
-  });
   rdPaintForm();
   rdPaintBook(fy);
 }
@@ -3152,16 +3127,11 @@ function renderP2p(){
       (list.length ? 'Create - New lending' : 'Create - New lending') + '</button></div>' +
     '<div id="p2pFormWrap"></div><div id="p2pBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('count').textContent = list.length + (list.length===1?' lending':' lendings');
   $('p2pNew').addEventListener('click', () => { p2pEditing = null; p2pFormOpen = true; p2pPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-p2p.csv', p2pCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every P2P lending? This cannot be undone.')) return;
-    DB.records.p2p = []; await saveDB(); render();
-  });
   p2pPaintForm();
   p2pPaintBook();
 }
@@ -3367,16 +3337,11 @@ function renderChit(){
       (list.length ? 'Add another chit group' : 'Add your first chit group') + '</button></div>' +
     '<div id="chitFormWrap"></div><div id="chitBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('count').textContent = list.length + (list.length===1?' group':' groups');
   $('chitNew').addEventListener('click', () => { chitEditing = null; chitFormOpen = true; chitPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-chit.csv', chitCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every chit group? This cannot be undone.')) return;
-    DB.records.chit = []; await saveDB(); render();
-  });
   chitPaintForm();
   chitPaintBook();
 }
@@ -3648,16 +3613,11 @@ function renderInsurance(){
     '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="insNew">' + (list.length?'Add another policy':'New policy') + '</button></div>' +
     '<div id="insFormWrap"></div><div id="insBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('count').textContent = list.length + (list.length===1?' policy':' policies');
   $('insNew').addEventListener('click', () => { insEditing = null; insFormOpen = true; insPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-insurance.csv', insuranceCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every policy? This cannot be undone.')) return;
-    DB.records.insurance = []; await saveDB(); render();
-  });
   insPaintForm();
   insPaintBook();
 }
@@ -3980,19 +3940,12 @@ function sipPaintBody(id){
   html += '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="sNew">'+cfg.createLabel+'</button></div>' +
     '<div id="'+id+'FormWrap"></div><div id="'+id+'Book"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   body.innerHTML = html;
   if($('sBack')) $('sBack').addEventListener('click', () => { st.selHolder = null; st.formOpen = false; render(); });
   $('sNew').addEventListener('click', () => { st.editing=null; st.formOpen=true; sipPaintForm(id); });
   $('exportBtn').addEventListener('click', () => download('investment-'+id+'.csv', sipCsv(id)));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!scoped.length) return;
-    if(!confirm('Delete '+(st.selHolder?"every folio of "+st.selHolder:'every folio')+'? This cannot be undone.')) return;
-    const keep = new Set(scoped.map(a=>a.id));
-    DB.records[id] = list.filter(a => !keep.has(a.id));
-    await saveDB(); render();
-  });
 
   sipPaintForm(id);
   sipPaintBook(id, scoped, fy);
@@ -4241,19 +4194,12 @@ function genPaintBody(id){
   html += '<div class="toolbar"><div></div><button type="button" class="btn-primary" id="gNew">'+cfg.createLabel+'</button></div>' +
     '<div id="'+id+'FormWrap"></div><div id="'+id+'Book"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
   body.innerHTML = html;
 
   if($('gBack')) $('gBack').addEventListener('click', () => { st.selHolder = null; st.formOpen = false; render(); });
   $('gNew').addEventListener('click', () => { st.editing=null; st.formOpen=true; genPaintForm(id); });
   $('exportBtn').addEventListener('click', () => download('investment-'+id+'.csv', genRecCsv(id)));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!scoped.length) return;
-    if(!confirm('Delete '+(st.selHolder?"every "+cfg.title+" account of "+st.selHolder:'every '+cfg.title+' account')+'? This cannot be undone.')) return;
-    const keep = new Set(scoped.map(a=>a.id));
-    DB.records[id] = list.filter(a => !keep.has(a.id));
-    await saveDB(); render();
-  });
 
   genPaintForm(id);
   genPaintBook(id, scoped, fy);
@@ -4506,16 +4452,11 @@ function renderEquity(){
       (list.length ? 'Add another stock' : 'Add your first stock') + '</button></div>' +
     '<div id="eqFormWrap"></div><div id="eqBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('count').textContent = list.length + (list.length===1?' stock':' stocks');
   $('eqNew').addEventListener('click', () => { equityEditing = null; equityFormOpen = true; equityPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-equity.csv', equityCsv()));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every stock and its transaction history? This cannot be undone.')) return;
-    DB.records.equity = []; await saveDB(); render();
-  });
   equityPaintForm();
   equityPaintBook();
 }
@@ -4750,15 +4691,10 @@ function renderMaturity(){
       (rows.length ? maturityTableHTML(rows, todayStr) : '<div class="empty" style="border:none"><strong>Nothing to show yet</strong>Add an FD, RD, Bond, PPF or SSY account, or log another maturity investment by hand.</div>') +
     '</div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear manual entries</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   $('matNew').addEventListener('click', () => { maturityEditing = null; maturityFormOpen = true; maturityPaintForm(); });
   $('exportBtn').addEventListener('click', () => download('investment-maturity.csv', maturityCsv(rows)));
-  $('clearBtn').addEventListener('click', async () => {
-    if(!maturityAll().length) return;
-    if(!confirm('Delete every manually-added maturity entry? FD/RD/Bonds/PPF/SSY themselves are untouched — this only clears entries you typed in here.')) return;
-    DB.records.maturity = []; await saveDB(); render();
-  });
   maturityPaintForm();
 
   $('main').querySelectorAll('[data-matedit]').forEach(b => b.addEventListener('click', () => {
@@ -4898,7 +4834,7 @@ function credPaintBody(){
     (list.length ? 'Add another login' : 'Add your first login') + '</button></div>' +
     '<div id="credFormWrap"></div><div id="credBook"></div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
-    '<span><button type="button" id="exportBtn">Export CSV</button> · <button type="button" id="clearBtn">Clear module</button></span></div>';
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
 
   body.innerHTML = html;
   $('credNew').addEventListener('click', () => { credEditing = null; credFormOpen = true; credPaintForm(); });
@@ -4906,11 +4842,6 @@ function credPaintBody(){
     if(!list.length) return;
     if(!confirm('This CSV will contain your passwords in plain text. Only save it somewhere private. Continue?')) return;
     download('credentials.csv', credentialsCsv());
-  });
-  $('clearBtn').addEventListener('click', async () => {
-    if(!list.length) return;
-    if(!confirm('Delete every saved login? This cannot be undone.')) return;
-    DB.records.credentials = []; await saveDB(); render();
   });
 
   credPaintForm();
@@ -5099,6 +5030,8 @@ $('xlsxBtn').addEventListener('click', () => {
     const backupWs = XLSX.utils.aoa_to_sheet([['DO NOT EDIT — used by Upload Excel to restore your data'], ...chunks]);
     XLSX.utils.book_append_sheet(wb, backupWs, 'RawBackup');
     XLSX.writeFile(wb, 'investment-tracker-'+today()+'.xlsx');
+    lastExcelExport = nowHMS();
+    updateDbStatus();
   }catch(e){
     alert('Could not build the Excel file: ' + e.message);
   }
@@ -5123,6 +5056,24 @@ $('xlsxFile').addEventListener('change', async e => {
     $('dbMsg').style.color = 'var(--gain)';
   }catch(err){
     alert('Could not read that file: ' + err.message);
+  }
+  e.target.value = '';
+});
+$('jsonUploadBtn').addEventListener('click', () => $('jsonFile').click());
+$('jsonFile').addEventListener('change', async e => {
+  const file = e.target.files[0]; if(!file) return;
+  try{
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if(!parsed || typeof parsed !== 'object'){ alert('This doesn\u2019t look like a Investment Tracker backup file.'); return; }
+    if(!confirm('This replaces everything currently in the app and the Google Sheet with the contents of '+file.name+'. Continue?')) return;
+    DB = Object.assign({capital:null, records:{}}, parsed);
+    await saveDB();
+    render(); buildNav();
+    $('dbMsg').textContent = 'Restored from '+file.name+' and pushed to the Sheet.';
+    $('dbMsg').style.color = 'var(--gain)';
+  }catch(err){
+    alert('Could not read that file — make sure it\u2019s a .json file downloaded from the Backup button: ' + err.message);
   }
   e.target.value = '';
 });
