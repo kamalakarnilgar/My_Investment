@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
     --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -574,7 +575,7 @@ const MODULES = [
     id:'ssy', name:'SSY', group:'Debt', icon:'\uD83D\uDC67', blurb:'Sukanya Samriddhi account for the girl child — one account, contribution schedule and maturity.', custom:'ssy'
   },
   {
-    id:'targetTracker', name:'Target Tracker', group:'Market', icon:'\uD83C\uDFAF',
+    id:'targetTracker', name:'Target Tracker', group:'Planning', icon:'\uD83C\uDFAF',
     blurb:'Daily trading profit tracker in dollars — set a capital and daily target %, log actual profit and withdrawals day by day.', custom:'targetTracker'
   }
 ];
@@ -794,6 +795,27 @@ function inFY(dateStr, fy){
    paid is money committed just like a contribution. Only money actually
    paid out counts — F&O margin is refundable collateral, not a payment,
    so it's left out of both totals. */
+function moduleInvestedAmount(mid, list){
+  if(!list.length) return 0;
+  if(['ppf','ssy','sip','etf','apy','nps','epf','insurance'].includes(mid)){
+    return list.reduce((s,a) => s + recurringTotal(a), 0);
+  }else if(mid === 'bonds'){
+    return list.reduce((s,b) => s + (b.buyPrice||0)*(b.qty||0), 0);
+  }else if(mid === 'fd' || mid === 'rd'){
+    return list.reduce((s,x) => s + (x.amount||0), 0);
+  }else if(mid === 'p2p'){
+    return list.reduce((s,l) => s + (l.amount||0), 0);
+  }else if(mid === 'ipo'){
+    return list.reduce((s,r) => s + (r.buyPrice||0)*(r.buyQty||0), 0);
+  }else if(mid === 'equity'){
+    return list.reduce((s,r) => s + equityCompute(r).invested, 0);
+  }else if(mid === 'chit'){
+    return list.reduce((s,r) => s + chitPaidTotal(r), 0);
+  }else if(mid === 'maturity'){
+    return list.reduce((s,r) => s + (r.investedAmount||0), 0);
+  }
+  return 0; // fno, crypto, targetTracker: trading capital/margin, not "invested" — deliberately excluded, see investedTotals notes
+}
 function investedTotals(){
   const fy = currentFY();
   let allTime = 0, thisFY = 0;
@@ -801,58 +823,44 @@ function investedTotals(){
     if(m.id === 'credentials') return;
     const list = DB.records[m.id] || [];
     if(!list.length) return;
+    allTime += moduleInvestedAmount(m.id, list);
     if(['ppf','ssy','sip','etf','apy','nps','epf','insurance'].includes(m.id)){
-      list.forEach(a => {
-        allTime += recurringTotal(a);
-        thisFY += recurringSchedule(a, fy).filter(r=>r.paid).reduce((s,r)=>s+r.amount,0);
-      });
+      list.forEach(a => { thisFY += recurringSchedule(a, fy).filter(r=>r.paid).reduce((s,r)=>s+r.amount,0); });
     }else if(m.id === 'bonds'){
-      list.forEach(b => {
-        const amt = (b.buyPrice||0)*(b.qty||0);
-        allTime += amt;
-        if(inFY(b.purchaseDate, fy)) thisFY += amt;
-      });
+      list.forEach(b => { if(inFY(b.purchaseDate, fy)) thisFY += (b.buyPrice||0)*(b.qty||0); });
     }else if(m.id === 'fd' || m.id === 'rd'){
-      list.forEach(x => {
-        const amt = x.amount||0;
-        allTime += amt;
-        if(inFY(x.openDate, fy)) thisFY += amt;
-      });
+      list.forEach(x => { if(inFY(x.openDate, fy)) thisFY += x.amount||0; });
     }else if(m.id === 'p2p'){
-      list.forEach(l => {
-        const amt = l.amount||0;
-        allTime += amt;
-        if(inFY(l.lendDate, fy)) thisFY += amt;
-      });
+      list.forEach(l => { if(inFY(l.lendDate, fy)) thisFY += l.amount||0; });
     }else if(m.id === 'ipo'){
-      list.forEach(r => {
-        const amt = (r.buyPrice||0)*(r.buyQty||0);
-        allTime += amt;
-        if(inFY(r.buyDate, fy)) thisFY += amt;
-      });
+      list.forEach(r => { if(inFY(r.buyDate, fy)) thisFY += (r.buyPrice||0)*(r.buyQty||0); });
     }else if(m.id === 'equity'){
-      list.forEach(r => {
-        allTime += equityCompute(r).invested;
-        (r.txns||[]).forEach(t => { if(t.type==='Buy' && inFY(t.date, fy)) thisFY += t.qty*t.price; });
-      });
+      list.forEach(r => (r.txns||[]).forEach(t => { if(t.type==='Buy' && inFY(t.date, fy)) thisFY += t.qty*t.price; }));
     }else if(m.id === 'chit'){
-      list.forEach(r => {
-        allTime += chitPaidTotal(r);
-        thisFY += chitPaidInFYPrecise(r, fy);
-      });
+      list.forEach(r => { thisFY += chitPaidInFYPrecise(r, fy); });
     }else if(m.id === 'maturity'){
-      list.forEach(r => {
-        allTime += r.investedAmount||0;
-        if(inFY(r.startDate, fy)) thisFY += r.investedAmount||0;
-      });
+      list.forEach(r => { if(inFY(r.startDate, fy)) thisFY += r.investedAmount||0; });
     }
   });
   return { allTime, thisFY, fy };
 }
+/* Per-scheme (module) breakdown of all-time invested amount, for the Overview pie chart. */
+function investedByModule(){
+  return MODULES
+    .filter(m => m.id !== 'credentials')
+    .map(m => ({ name: m.name, icon: m.icon, amount: moduleInvestedAmount(m.id, DB.records[m.id]||[]) }))
+    .filter(x => x.amount > 0)
+    .sort((a,b) => b.amount - a.amount);
+}
+
+let homeChart = null;
+const PIE_COLORS = ['#8B7CFF','#3DDC97','#FFC46B','#FF6B6B','#5EC8F2','#F2A0E8','#C9A227','#6EE7B7',
+  '#F59E0B','#EF4444','#818CF8','#34D399','#FBBF24','#FB7185','#38BDF8','#A78BFA'];
 
 function renderHome(){
   const total = MODULES.reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
   const inv = investedTotals();
+  const bd = investedByModule();
 
   $('main').innerHTML =
     '<div class="phead"><div><div class="eyebrow">Overview</div><h2>All investments</h2>' +
@@ -864,10 +872,50 @@ function renderHome(){
       '<div class="glass stat pos-edge"><div class="k">Total Invested — '+fyLabel(inv.fy)+'</div><div class="v pos">'+inr(inv.thisFY)+'</div>' +
         '<div class="sub">this financial year only, including all Insurance premiums</div></div>' +
     '</div>' +
+    '<div class="glass" style="padding:18px;margin-bottom:18px">' +
+      (bd.length
+        ? '<h3 style="margin:0 0 14px;font-size:14px;font-weight:600">Invested by scheme</h3>' +
+          '<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">' +
+            '<div style="width:180px;height:180px;flex-shrink:0;position:relative"><canvas id="homePie"></canvas></div>' +
+            '<div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:9px">' +
+              bd.map((x,i) => {
+                const pct2 = inv.allTime ? (x.amount/inv.allTime*100) : 0;
+                return '<div style="display:flex;align-items:center;gap:9px;font-size:12.5px">' +
+                  '<span style="width:10px;height:10px;border-radius:3px;background:'+PIE_COLORS[i%PIE_COLORS.length]+';flex-shrink:0"></span>' +
+                  '<span style="flex:1">'+(x.icon||'')+' '+esc(x.name)+'</span>' +
+                  '<span style="font-family:var(--mono);color:var(--muted);font-size:11px">'+pct2.toFixed(1)+'%</span>' +
+                  '<span style="font-family:var(--mono)">'+inr(x.amount)+'</span>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+          '</div>'
+        : '<p class="note" style="margin:0">Add some entries to see how your money is split across schemes.</p>') +
+    '</div>' +
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
     '<span><button type="button" id="exportAll">Export everything</button></span></div>';
 
   $('exportAll').addEventListener('click', exportAll);
+
+  if(homeChart){ homeChart.destroy(); homeChart = null; }
+  if(bd.length && window.Chart){
+    const ctx = $('homePie');
+    if(ctx){
+      homeChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: bd.map(x => x.name),
+          datasets: [{ data: bd.map(x => x.amount), backgroundColor: bd.map((x,i) => PIE_COLORS[i%PIE_COLORS.length]), borderWidth: 0 }]
+        },
+        options: {
+          cutout: '62%',
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + inr(c.parsed) } }
+          }
+        }
+      });
+    }
+  }
 }
 
 /* ============================================================
@@ -4863,7 +4911,7 @@ function maturityCsv(rows){
    this app's own Google Sheet-backed DB.
    ============================================================ */
 const ttAll = () => recs('targetTracker');
-const ttState = { record: null, editingSetup: false };
+const ttState = { record: null, editingSetup: false, showCapitalForm: false };
 
 function ttPad(n){ return String(n).padStart(2,'0'); }
 function ttToISO(d){ return d.getFullYear()+'-'+ttPad(d.getMonth()+1)+'-'+ttPad(d.getDate()); }
@@ -4886,11 +4934,17 @@ function ttComputeRows(rec){
   const totalDays = ttDayDiff(start, end) + 1;
   const tISO = ttTodayISO();
   const entries = rec.entries || {};
+  const adjByDate = {};
+  (rec.capitalAdjustments||[]).forEach(a => {
+    adjByDate[a.date] = (adjByDate[a.date]||0) + (a.type==='Reduce' ? -Math.abs(a.amount) : Math.abs(a.amount));
+  });
   const rows = [];
   let opening = rec.capital, cumulative = 0;
   for(let d=1; d<=totalDays; d++){
     const date = ttAddDaysD(start, d-1);
     const dateStr = ttToISO(date);
+    const capitalAdj = adjByDate[dateStr] || 0;
+    if(capitalAdj) opening += capitalAdj;
     const dow = date.getDay();
     const isWeekend = dow===0 || dow===6;
     const isNewFY = date.getMonth()===3 && date.getDate()===1;
@@ -4904,7 +4958,7 @@ function ttComputeRows(rec){
     const vsTarget = actual - targetProfit;
     const closing = opening + actual - withdrawal;
     cumulative += actual;
-    rows.push({ d, dateStr, date, dow, isWeekend, isNewFY, isToday, isFuture, opening, targetProfit, actual, withdrawal, actualPct, vsTarget, closing, cumulative });
+    rows.push({ d, dateStr, date, dow, isWeekend, isNewFY, isToday, isFuture, opening, targetProfit, actual, withdrawal, actualPct, vsTarget, closing, cumulative, capitalAdj });
     opening = closing;
   }
   return { rows, totalDays, start, end };
@@ -4925,12 +4979,35 @@ function ttTitleBarHTML(isSetup, model, rec){
 }
 function ttInstrHTML(){
   return '<div class="tt-instr">' +
-    '<span><span class="tt-legend-sw" style="background:var(--tt-withdraw-fill);border:1px solid #E3C24A;"></span>Enter data in yellow columns (Actual Profit $, Withdrawal $)</span>' +
+    '<span><span class="tt-legend-sw" style="background:var(--tt-withdraw-fill);border:1px solid #E3C24A;"></span>Enter data in the Actual Profit and Withdrawal columns</span>' +
     '<span><span class="tt-legend-sw" style="background:var(--tt-weekend);border:1px solid #C7C9D1;"></span>Grey = Weekend</span>' +
     '<span><span class="tt-legend-sw" style="background:var(--tt-fy-gold-strong);"></span>Gold = New FY</span>' +
+    '<button class="tt-today-btn" id="tt-capital-btn">Add / Reduce Capital</button>' +
     '<button class="tt-today-btn" id="tt-jump-today-btn">Jump to Today</button></div>';
 }
 function ttInstrHTMLMinimal(){ return '<div class="tt-instr"><span>Fill in the fields below, then start tracking.</span></div>'; }
+function ttCapitalFormHTML(rec){
+  const list = (rec.capitalAdjustments||[]).slice().sort((a,b) => a.date < b.date ? 1 : -1);
+  const rows = list.map(a =>
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--tt-border);font-size:12.5px">' +
+    '<span>'+ttFmtDateShort(ttFromISO(a.date))+' \u2014 <strong class="'+(a.type==='Reduce'?'tt-red':'tt-green')+'">'+(a.type==='Reduce'?'\u2212':'+')+ttFmtUSD(Math.abs(a.amount),0)+'</strong></span>' +
+    '<button type="button" class="tt-btn-text" data-tt-caprm="'+a.id+'">Remove</button></div>'
+  ).join('') || '<p style="font-size:12.5px;color:var(--tt-muted);margin:6px 0">No capital changes logged yet.</p>';
+  return '<div class="tt-setup-card" style="margin-top:0">' +
+    '<div class="tt-setup-title">Add or reduce capital</div>' +
+    '<p style="font-size:12px;color:var(--tt-muted);margin:-8px 0 14px">Takes effect from the date you choose — every day\u2019s Opening Capital and Target Profit from that date onward recalculates automatically.</p>' +
+    '<div class="tt-field-grid">' +
+      '<div class="tt-field"><label>Type</label><select id="tt-cap-type"><option value="Add">Add capital</option><option value="Reduce">Reduce capital</option></select></div>' +
+      '<div class="tt-field"><label>Amount ($)</label><input type="number" inputmode="decimal" id="tt-cap-amount" placeholder="1000"/></div>' +
+      '<div class="tt-field"><label>Effective date</label><input type="date" id="tt-cap-date" value="'+ttTodayISO()+'"/></div>' +
+    '</div>' +
+    '<div class="tt-setup-actions"><span></span><div style="display:flex;gap:10px;">' +
+      '<button class="tt-btn-text" style="color:var(--tt-muted);" id="tt-cap-cancel">Close</button>' +
+      '<button class="tt-btn-primary" id="tt-cap-save">Save</button>' +
+    '</div></div>' +
+    '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--tt-border)">' + rows + '</div>' +
+  '</div>';
+}
 function ttSetupCardHTML(isEdit, prefill){
   return '<div class="tt-setup-card"><div class="tt-setup-title">'+(isEdit?'Edit tracker setup':'Set up your daily tracker')+'</div>' +
     '<div class="tt-field-grid">' +
@@ -4964,18 +5041,19 @@ function ttTableHTML(model){
     const vsColor = row.vsTarget >= 0 ? 'tt-green' : 'tt-red';
     const actualInput = row.isFuture
       ? '<span class="tt-dash">&mdash;</span>'
-      : '<input class="tt-cell-input" style="color:#fff;" type="number" step="0.01" value="'+(row.actual||'')+'" placeholder="0" data-date="'+row.dateStr+'" data-field="actual"/>';
+      : '<input class="tt-cell-input" type="number" step="0.01" value="'+(row.actual||'')+'" placeholder="0" data-date="'+row.dateStr+'" data-field="actual"/>';
     const withdrawInput = row.isFuture
       ? '<span class="tt-dash">&mdash;</span>'
       : '<input class="tt-cell-input" type="number" step="0.01" value="'+(row.withdrawal||'')+'" placeholder="0" data-date="'+row.dateStr+'" data-field="withdrawal"/>';
+    const capMark = row.capitalAdj ? ' <span class="tt-mono" style="color:var(--tt-blue-strong);font-weight:700" title="Capital '+(row.capitalAdj>=0?'added':'reduced')+' this day">'+(row.capitalAdj>=0?'\u25B2':'\u25BC')+'</span>' : '';
     return '<tr class="'+(row.isToday?'tt-today':'')+'">' +
       '<td class="tt-freeze1" style="background:'+bg+';">'+row.d+'</td>' +
       '<td class="tt-left" style="background:'+bg+';">'+ttFmtDateShort(row.date)+'</td>' +
       '<td class="tt-left" style="background:'+bg+';">'+ttDOW[row.dow]+'</td>' +
       '<td class="tt-center" style="background:'+bg+';">'+wk+'</td>' +
-      '<td style="background:'+bg+';">'+ttFmtUSD(row.opening)+'</td>' +
+      '<td style="background:'+bg+';">'+ttFmtUSD(row.opening)+capMark+'</td>' +
       '<td style="background:'+bg+';">'+ttFmtUSD(row.targetProfit)+'</td>' +
-      '<td style="background:var(--tt-actual-fill);">'+actualInput+'</td>' +
+      '<td style="background:'+bg+';">'+actualInput+'</td>' +
       '<td style="background:'+bg+';">'+row.actualPct.toFixed(2)+'%</td>' +
       '<td style="background:var(--tt-withdraw-fill);">'+withdrawInput+'</td>' +
       '<td style="background:'+bg+';">'+ttFmtUSD(row.closing)+'</td>' +
@@ -5007,6 +5085,7 @@ function ttPaint(){
     html += ttSetupCardHTML(isSetup, prefill);
   }else{
     html += ttInstrHTML();
+    if(ttState.showCapitalForm) html += ttCapitalFormHTML(rec);
     html += ttTableHTML(model);
     html += ttDisclaimerHTML();
   }
@@ -5059,6 +5138,32 @@ function ttAttachHandlers(){
   if(jumpBtn) jumpBtn.addEventListener('click', () => {
     const el = document.querySelector('#ttPane tr.tt-today');
     if(el) el.scrollIntoView({block:'center'});
+  });
+
+  const capBtn = $('tt-capital-btn');
+  if(capBtn) capBtn.addEventListener('click', () => { ttState.showCapitalForm = !ttState.showCapitalForm; ttPaint(); });
+
+  const capCancel = $('tt-cap-cancel');
+  if(capCancel) capCancel.addEventListener('click', () => { ttState.showCapitalForm = false; ttPaint(); });
+
+  const capSave = $('tt-cap-save');
+  if(capSave) capSave.addEventListener('click', async () => {
+    const type = $('tt-cap-type').value;
+    const amount = parseFloat($('tt-cap-amount').value);
+    const date = $('tt-cap-date').value;
+    if(!amount || amount<=0 || !date){ alert('Enter a valid amount and effective date.'); return; }
+    if(!ttState.record.capitalAdjustments) ttState.record.capitalAdjustments = [];
+    ttState.record.capitalAdjustments.push({ id: uid(), type, amount, date });
+    await saveDB();
+    ttPaint();
+  });
+
+  document.querySelectorAll('#ttPane [data-tt-caprm]').forEach(b => {
+    b.addEventListener('click', async () => {
+      ttState.record.capitalAdjustments = (ttState.record.capitalAdjustments||[]).filter(a => a.id !== b.dataset.ttCaprm);
+      await saveDB();
+      ttPaint();
+    });
   });
 
   document.querySelectorAll('#ttPane .tt-cell-input').forEach(inp => {
