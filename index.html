@@ -292,6 +292,73 @@
     .tkt,.tile{animation:rise .2s ease-out}
     @keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
   }
+
+  /* ---- Target Tracker (ported daily-trading-sheet) — fully scoped under
+     #ttPane and its own --tt-* variables so nothing here can leak out and
+     override the rest of the app's colours or buttons ---- */
+  #ttPane{
+    --tt-navy-dark:#152A4E; --tt-navy:#1F3864; --tt-blue-strong:#2F5C8A; --tt-blue-tint:#E9F1FB;
+    --tt-page:#F3F5F9; --tt-white:#FFFFFF; --tt-border:#D9DFE8;
+    --tt-weekend:#E7E8EC; --tt-fy-gold:#FCEDAE; --tt-fy-gold-strong:#D8B84A;
+    --tt-actual-fill:#C9A227; --tt-withdraw-fill:#FFF6CF;
+    --tt-green:#177A3C; --tt-red:#C23B34; --tt-text:#1B2130; --tt-muted:#6B7280;
+    background:var(--tt-page); color:var(--tt-text); border-radius:16px; overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  #ttPane .tt-mono{font-family:ui-monospace,SFMono-Regular,"Roboto Mono",Menlo,Consolas,monospace}
+  #ttPane .tt-titlebar{background:var(--tt-navy-dark);color:#fff;padding:14px;display:flex;align-items:center;
+    justify-content:center;gap:10px;flex-wrap:wrap;text-align:center;position:relative}
+  #ttPane .tt-titlebar .tt-t{font-weight:700;font-size:15px}
+  #ttPane .tt-titlebar .tt-meta{font-size:13px;font-weight:500;color:#DCE6F5}
+  #ttPane .tt-titlebar .tt-sep{color:#7F94B8}
+  #ttPane .tt-gear-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.3);color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:15px}
+  #ttPane .tt-gear-btn:hover{background:rgba(255,255,255,.2)}
+  #ttPane .tt-instr{background:#fff;border-bottom:1px solid var(--tt-border);padding:8px 14px;font-size:12px;
+    color:var(--tt-muted);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  #ttPane .tt-legend-sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  #ttPane .tt-today-btn{margin-left:auto;background:var(--tt-blue-tint);color:var(--tt-navy);border:1px solid var(--tt-border);
+    border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  #ttPane .tt-today-btn:hover{background:#DDEBFA}
+  #ttPane .tt-setup-card{background:#fff;margin:16px;border:1px solid var(--tt-border);border-radius:12px;padding:18px}
+  #ttPane .tt-setup-title{font-weight:700;color:var(--tt-navy);font-size:15px;margin-bottom:14px}
+  #ttPane .tt-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  @media(min-width:560px){ #ttPane .tt-field-grid{grid-template-columns:1fr 1fr 1fr} }
+  #ttPane .tt-field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--tt-muted);
+    margin-bottom:5px;font-weight:600}
+  #ttPane .tt-field input,#ttPane .tt-field select{width:100%;border:1px solid var(--tt-border);border-radius:7px;
+    padding:9px 10px;font-size:14px;color:var(--tt-text);background:#fff}
+  #ttPane .tt-field input:focus,#ttPane .tt-field select:focus{outline:none;border-color:var(--tt-blue-strong);
+    box-shadow:0 0 0 2px #2F5C8A22}
+  #ttPane .tt-setup-actions{display:flex;align-items:center;justify-content:space-between}
+  #ttPane .tt-btn-primary{background:var(--tt-navy);color:#fff;border:none;border-radius:8px;padding:10px 20px;
+    font-size:14px;font-weight:600;cursor:pointer}
+  #ttPane .tt-btn-primary:hover{background:var(--tt-blue-strong)}
+  #ttPane .tt-btn-text{background:none;border:none;color:#B23B2F;font-size:12px;cursor:pointer;font-weight:600}
+  #ttPane .tt-sheet-wrapper{overflow:auto;max-height:78vh;border:1px solid var(--tt-border);margin:0 14px 16px;
+    border-radius:0 0 10px 10px;background:#fff}
+  #ttPane table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px;white-space:nowrap}
+  #ttPane thead th{position:sticky;top:0;background:var(--tt-blue-tint);color:var(--tt-navy);font-weight:700;
+    text-align:right;padding:8px;border-bottom:2px solid var(--tt-border);border-right:1px solid var(--tt-border);
+    z-index:2;font-size:11px}
+  #ttPane thead th.tt-left{text-align:left}
+  #ttPane thead th.tt-editcol{background:var(--tt-blue-strong);color:#fff}
+  #ttPane thead th.tt-freeze1{left:0;z-index:4;text-align:center}
+  #ttPane tbody td{padding:6px 8px;border-bottom:1px solid var(--tt-border);border-right:1px solid var(--tt-border);text-align:right}
+  #ttPane tbody td.tt-left{text-align:left}
+  #ttPane tbody td.tt-center{text-align:center}
+  #ttPane tbody td.tt-freeze1{position:sticky;left:0;z-index:1;text-align:center;font-weight:600}
+  #ttPane tbody tr:hover td{filter:brightness(0.97)}
+  #ttPane tbody tr.tt-today td{box-shadow:inset 0 0 0 1.5px var(--tt-navy)}
+  #ttPane .tt-cell-input{width:84px;border:none;background:transparent;text-align:right;font-size:12px;
+    font-weight:700;color:inherit;font-family:inherit;padding:2px 0}
+  #ttPane .tt-cell-input:focus{outline:2px solid var(--tt-navy);outline-offset:1px;border-radius:3px;
+    background:#fff;color:var(--tt-text)}
+  #ttPane .tt-dash{color:#B7BCC6}
+  #ttPane .tt-green{color:var(--tt-green);font-weight:700}
+  #ttPane .tt-red{color:var(--tt-red);font-weight:700}
+  #ttPane .tt-disclaimer{font-size:11px;line-height:1.6;color:var(--tt-muted);padding:0 18px 24px}
+  #ttPane .tt-empty-note{padding:40px 20px;text-align:center;color:var(--tt-muted);font-size:13px}
 </style>
 </head>
 <body>
@@ -305,6 +372,7 @@
 </div>
 
 <div class="app" style="display:none;" id="appShell">
+  <datalist id="holderList"></datalist>
   <aside class="glass rail">
     <div class="brand">
       <div class="eyebrow">Portfolio · V7</div>
@@ -504,12 +572,18 @@ const MODULES = [
   },
   {
     id:'ssy', name:'SSY', group:'Debt', icon:'\uD83D\uDC67', blurb:'Sukanya Samriddhi account for the girl child — one account, contribution schedule and maturity.', custom:'ssy'
+  },
+  {
+    id:'targetTracker', name:'Target Tracker', group:'Market', icon:'\uD83C\uDFAF',
+    blurb:'Daily trading profit tracker in dollars — set a capital and daily target %, log actual profit and withdrawals day by day.', custom:'targetTracker'
   }
 ];
 MODULES.forEach(m => { m.folder = 'Investment'; });
 MODULES.push(
   { id:'credentials', name:'Credentials', group:'Vault', folder:'Credentials', icon:'\uD83D\uDD10',
-    blurb:'Store logins for your investment platforms — broker, bank, demat, fund houses — with a password-strength check.', custom:'credentials' }
+    blurb:'Store logins for your investment platforms — broker, bank, demat, fund houses — with a password-strength check.', custom:'credentials' },
+  { id:'setup', name:'Set up', group:'Setup', folder:'Setup', icon:'\u2699\uFE0F',
+    blurb:'Holder names used across every module — add one here and it appears everywhere you type a holder.', custom:'setup' }
 );
 MODULES.sort((a,b) => a.name.localeCompare(b.name));
 const MOD = id => MODULES.find(m => m.id === id);
@@ -641,7 +715,7 @@ function buildNav(){
   MODULES.forEach(m => { (folders[m.folder] = folders[m.folder] || []).push(m); });
   let html = '<button class="navbtn" data-go="home"' + (route==='home'?' aria-current="true"':'') + '>' +
     '<span class="navic">\uD83C\uDFE0</span><span>Overview</span></button>';
-  const order = ['Investment','Credentials'];
+  const order = ['Investment','Credentials','Setup'];
   const keys = Object.keys(folders).sort((a,b) => {
     const ia = order.indexOf(a), ib = order.indexOf(b);
     return (ia<0?99:ia) - (ib<0?99:ib);
@@ -650,7 +724,7 @@ function buildNav(){
     const open = navFolderState[f] !== false;
     const count = folders[f].reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
     html += '<button type="button" class="navfolder" data-folder="'+esc(f)+'" aria-expanded="'+open+'">' +
-      '<span class="navic">'+(f==='Credentials'?'\uD83D\uDD10':'\uD83D\uDCB0')+'</span><span class="navlabel">'+esc(f)+'</span>' +
+      '<span class="navic">'+(f==='Credentials'?'\uD83D\uDD10':f==='Setup'?'\u2699\uFE0F':'\uD83D\uDCB0')+'</span><span class="navlabel">'+esc(f)+'</span>' +
       '<span class="n">'+(count||'')+'</span><span class="chev '+(open?'open':'')+'">\u25B8</span></button>';
     if(!open) return;
     const groups = {};
@@ -686,6 +760,8 @@ function render(){
   if(m.custom === 'crypto') return renderCrypto();
   if(m.custom === 'equity') return renderEquity();
   if(m.custom === 'maturity') return renderMaturity();
+  if(m.custom === 'setup') return renderSetup();
+  if(m.custom === 'targetTracker') return renderTargetTracker();
   if(m.custom === 'ppf') return renderPpf();
   if(m.custom === 'ssy') return renderSsy();
   if(m.custom === 'bonds') return renderBonds();
@@ -1005,6 +1081,7 @@ function exportAll(){
       m.custom === 'crypto' ? cryptoCsv(true) :
       m.custom === 'equity' ? equityCsv(true) :
       m.custom === 'maturity' ? maturityCsv() :
+      m.custom === 'targetTracker' ? ttCsv(true) :
       m.custom === 'ppf' ? ppfCsv() :
       m.custom === 'ssy' ? ssyCsv() :
       m.custom === 'bonds' ? bondsCsv() :
@@ -1083,7 +1160,7 @@ function renderFno(){
     '</div>' +
 
     '<form class="glass panel" id="form" autocomplete="off"><h3 id="form-title">New trade</h3><div class="grid">' +
-      '<div class="fld"><label for="holder">Holder</label><input type="text" id="holder" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="holder">Holder</label><input type="text" id="holder" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="entryDate">Date of entry</label><input type="date" id="entryDate" required></div>' +
       '<div class="fld"><label for="symbol">Symbol</label><input type="text" id="symbol" placeholder="NIFTY" required></div>' +
       '<div class="fld"><label for="instrument">Instrument</label><select id="instrument"><option value="Option">Option</option><option value="Future">Future</option></select></div>' +
@@ -1412,7 +1489,7 @@ function renderCrypto(){
     '</div>' +
 
     '<form class="glass panel" id="cform" autocomplete="off"><h3 id="cform-title">New trade</h3><div class="grid">' +
-      '<div class="fld"><label for="c_holder">Holder</label><input type="text" id="c_holder" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="c_holder">Holder</label><input type="text" id="c_holder" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="c_entryDate">Date of entry</label><input type="date" id="c_entryDate" required></div>' +
       '<div class="fld"><label for="c_symbol">Symbol</label><input type="text" id="c_symbol" placeholder="BTC" required></div>' +
       '<div class="fld"><label for="c_instrument">Instrument</label><select id="c_instrument"><option value="Option">Option</option><option value="Future">Future</option></select></div>' +
@@ -1965,7 +2042,7 @@ function bondsPaintForm(){
       '<div class="fld"><label for="b_bondName">Bond name</label><input type="text" id="b_bondName" value="'+v('bondName')+'" placeholder="7.18% GOI 2033" required></div>' +
       '<div class="fld"><label for="b_purchaseDate">Purchase date</label><input type="date" id="b_purchaseDate" value="'+v('purchaseDate')+'" required></div>' +
       '<div class="fld"><label for="b_type">Type</label><select id="b_type">'+sel('type',['Government','Corporate','Tax-free','SGB','PSU','Perpetual'])+'</select></div>' +
-      '<div class="fld"><label for="b_holder">Holder</label><input type="text" id="b_holder" value="'+v('holder')+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="b_holder">Holder</label><input type="text" id="b_holder" value="'+v('holder')+'" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="b_bank">Linked bank</label><input type="text" id="b_bank" value="'+v('bank')+'" placeholder="Demat-linked bank"></div>' +
       '<div class="fld"><label for="b_platform">Platform</label><input type="text" id="b_platform" value="'+v('platform')+'" placeholder="Zerodha / IndiaBonds"></div>' +
       '<div class="fld"><label for="b_isin">ISIN no</label><input type="text" id="b_isin" value="'+v('isin')+'" placeholder="INE..."></div>' +
@@ -2242,7 +2319,7 @@ function ppfPaintForm(){
   wrap.innerHTML =
     '<form class="glass panel" id="ppfForm" autocomplete="off"><h3>' +
       (ppfEditing ? 'Editing account' : 'New PPF account') + '</h3><div class="grid">' +
-      '<div class="fld"><label for="p_holder">Account holder</label><input type="text" id="p_holder" value="'+v('holder')+'" placeholder="Full name" required></div>' +
+      '<div class="fld"><label for="p_holder">Account holder</label><input type="text" id="p_holder" value="'+v('holder')+'" placeholder="Full name" list="holderList" required></div>' +
       '<div class="fld"><label for="p_accountNo">Account no</label><input type="text" id="p_accountNo" value="'+v('accountNo')+'" placeholder="1234567890"></div>' +
       '<div class="fld"><label for="p_bank">Linked bank</label><input type="text" id="p_bank" value="'+v('bank')+'" placeholder="SBI / Post Office"></div>' +
       '<div class="fld"><label for="p_openDate">Opening date</label><input type="date" id="p_openDate" value="'+v('openDate')+'" required></div>' +
@@ -2547,7 +2624,7 @@ function ssyPaintForm(){
   wrap.innerHTML =
     '<form class="glass panel" id="ssyForm" autocomplete="off"><h3>' +
       (ssyEditing ? 'Editing account' : 'New SSY account') + '</h3><div class="grid">' +
-      '<div class="fld"><label for="s_name">Girl child name</label><input type="text" id="s_name" value="'+v('name')+'" placeholder="Full name" required></div>' +
+      '<div class="fld"><label for="s_name">Girl child name</label><input type="text" id="s_name" value="'+v('name')+'" placeholder="Full name" list="holderList" required></div>' +
       '<div class="fld"><label for="s_guardian">Guardian</label><input type="text" id="s_guardian" value="'+v('guardian')+'" placeholder="Parent / guardian name"></div>' +
       '<div class="fld"><label for="s_bank">Linked bank account</label><input type="text" id="s_bank" value="'+v('bank')+'" placeholder="SBI / Post Office"></div>' +
       '<div class="fld"><label for="s_accountNo">Account no</label><input type="text" id="s_accountNo" value="'+v('accountNo')+'" placeholder="1234567890"></div>' +
@@ -2710,7 +2787,7 @@ function fdPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="fdForm" autocomplete="off"><h3>'+(fdEditing?'Editing FD':'New FD')+'</h3><div class="grid">' +
-      '<div class="fld"><label for="x_holder">Holder</label><input type="text" id="x_holder" value="'+(v('holder')||(holderSel.fd?esc(holderSel.fd):''))+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="x_holder">Holder</label><input type="text" id="x_holder" value="'+(v('holder')||(holderSel.fd?esc(holderSel.fd):''))+'" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="x_fdNo">FD no</label><input type="text" id="x_fdNo" value="'+v('fdNo')+'" placeholder="FD-100234" required></div>' +
       '<div class="fld"><label for="x_bank">Linked bank</label><input type="text" id="x_bank" value="'+v('bank')+'" placeholder="HDFC Bank"></div>' +
       '<div class="fld"><label for="x_amount">Amount</label><input type="number" id="x_amount" step="any" value="'+v('amount')+'" placeholder="200000" required></div>' +
@@ -2896,7 +2973,7 @@ function rdPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="rdForm" autocomplete="off"><h3>'+(rdEditing?'Editing RD':'New RD')+'</h3><div class="grid">' +
-      '<div class="fld"><label for="r_holder">Holder</label><input type="text" id="r_holder" value="'+(v('holder')||(holderSel.rd?esc(holderSel.rd):''))+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="r_holder">Holder</label><input type="text" id="r_holder" value="'+(v('holder')||(holderSel.rd?esc(holderSel.rd):''))+'" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="r_rdNo">RD no (account no)</label><input type="text" id="r_rdNo" value="'+v('rdNo')+'" placeholder="91052836643" required></div>' +
       '<div class="fld"><label for="r_bank">Linked bank</label><input type="text" id="r_bank" value="'+v('bank')+'" placeholder="SBI"></div>' +
       '<div class="fld"><label for="r_amount">Amount <span style="opacity:.6">(recurring)</span></label><input type="number" id="r_amount" step="any" value="'+v('amount')+'" placeholder="5000" required></div>' +
@@ -3144,7 +3221,7 @@ function p2pPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="p2pForm" autocomplete="off"><h3>'+(p2pEditing?'Editing lending':'New lending')+'</h3><div class="grid">' +
-      '<div class="fld"><label for="pl_holder">Holder</label><input type="text" id="pl_holder" value="'+(v('holder')||(holderSel.p2p?esc(holderSel.p2p):''))+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="pl_holder">Holder</label><input type="text" id="pl_holder" value="'+(v('holder')||(holderSel.p2p?esc(holderSel.p2p):''))+'" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="pl_date">Lending date</label><input type="date" id="pl_date" value="'+v('lendDate')+'" required></div>' +
       '<div class="fld"><label for="pl_amount">Lending amount (principal)</label><input type="number" id="pl_amount" step="any" value="'+v('amount')+'" placeholder="25000" required></div>' +
       '<div class="fld"><label for="pl_platform">Lending platform</label><input type="text" id="pl_platform" value="'+v('platform')+'" placeholder="Faircent" required></div>' +
@@ -3355,7 +3432,7 @@ function chitPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="chitForm" autocomplete="off"><h3>'+(chitEditing?'Editing chit group':'New chit group')+'</h3><div class="grid">' +
-      '<div class="fld"><label for="ch_holder">Holder</label><input type="text" id="ch_holder" value="'+(v('holder')||(holderSel.chit?esc(holderSel.chit):''))+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="ch_holder">Holder</label><input type="text" id="ch_holder" value="'+(v('holder')||(holderSel.chit?esc(holderSel.chit):''))+'" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="ch_company">Chit company</label><input type="text" id="ch_company" value="'+v('company')+'" placeholder="Shriram Chits" required></div>' +
       '<div class="fld"><label for="ch_groupNo">Group / ticket no</label><input type="text" id="ch_groupNo" value="'+v('groupNo')+'"></div>' +
       '<div class="fld"><label for="ch_chitValue">Chit value</label><input type="number" id="ch_chitValue" step="any" value="'+v('chitValue')+'" placeholder="500000" required></div>' +
@@ -3634,7 +3711,7 @@ function insPaintForm(){
     '<form class="glass panel" id="insForm" autocomplete="off"><h3>'+(insEditing?'Editing policy':'New policy')+'</h3><div class="grid">' +
       '<div class="fld"><label for="i_insuranceType">Insurance type</label><select id="i_insuranceType">'+sel('insuranceType',['Endowment','Money Back','Term','Whole Life','ULIP','Pension','Health','Child Plan'])+'</select></div>' +
       '<div class="fld"><label for="i_platform">Platform</label><input type="text" id="i_platform" value="'+v('platform')+'" placeholder="LIC"></div>' +
-      '<div class="fld"><label for="i_policyHolder">Policy holder</label><input type="text" id="i_policyHolder" value="'+(v('policyHolder')||(holderSel.insurance?esc(holderSel.insurance):''))+'" required></div>' +
+      '<div class="fld"><label for="i_policyHolder">Policy holder</label><input type="text" id="i_policyHolder" value="'+(v('policyHolder')||(holderSel.insurance?esc(holderSel.insurance):''))+'" list="holderList" required></div>' +
       '<div class="fld"><label for="i_policyNo">Policy no</label><input type="text" id="i_policyNo" value="'+v('policyNo')+'" required></div>' +
       '<div class="fld"><label for="i_policyName">Policy name</label><input type="text" id="i_policyName" value="'+v('policyName')+'"></div>' +
       '<div class="fld"><label for="i_sumAssured">Sum assured</label><input type="number" id="i_sumAssured" step="any" value="'+v('sumAssured')+'" placeholder="500000"></div>' +
@@ -3963,7 +4040,7 @@ function sipPaintForm(id){
   wrap.innerHTML =
     '<form class="glass panel" id="'+id+'Form" autocomplete="off"><h3>'+(st.editing?'Editing folio':'New folio')+'</h3><div class="grid">' +
       '<div class="fld"><label for="f_name">'+cfg.nameLabel+'</label><input type="text" id="f_name" value="'+v('name')+'" placeholder="'+cfg.namePh+'" required></div>' +
-      '<div class="fld"><label for="f_holder">Holder</label><input type="text" id="f_holder" value="'+v('holder')+'" placeholder="Kamalakar" required></div>' +
+      '<div class="fld"><label for="f_holder">Holder</label><input type="text" id="f_holder" value="'+v('holder')+'" placeholder="Kamalakar" list="holderList" required></div>' +
       '<div class="fld"><label for="f_platform">Platform</label><input type="text" id="f_platform" value="'+v('platform')+'" placeholder="Angel One"></div>' +
       '<div class="fld"><label for="f_linkedAccount">Linked account</label><input type="text" id="f_linkedAccount" value="'+v('linkedAccount')+'" placeholder="ICICI"></div>' +
       '<div class="fld"><label for="f_folioNo">Folio no</label><input type="text" id="f_folioNo" value="'+v('folioNo')+'"></div>' +
@@ -4221,7 +4298,7 @@ function genPaintForm(id){
 
   wrap.innerHTML =
     '<form class="glass panel" id="'+id+'Form" autocomplete="off"><h3>'+(st.editing?'Editing account':'New account')+'</h3><div class="grid">' +
-      '<div class="fld"><label for="g_holder">Holder name</label><input type="text" id="g_holder" value="'+v('holder')+'" required></div>' +
+      '<div class="fld"><label for="g_holder">Holder name</label><input type="text" id="g_holder" value="'+v('holder')+'" list="holderList" required></div>' +
       '<div class="fld"><label for="g_nominee">Nominee\u2019s name</label><input type="text" id="g_nominee" value="'+v('nominee')+'"></div>' +
       '<div class="fld"><label for="g_startDate">Start date'+(cfg.startDateOptional?' <span style="opacity:.6">(optional)</span>':'')+'</label><input type="date" id="g_startDate" value="'+v('startDate')+'"'+(cfg.startDateOptional?'':' required')+'></div>' +
       extraHtml +
@@ -4469,7 +4546,7 @@ function equityPaintForm(){
 
   wrap.innerHTML =
     '<form class="glass panel" id="eqForm" autocomplete="off"><h3>'+(equityEditing?'Editing stock':'New stock')+'</h3><div class="grid">' +
-      '<div class="fld"><label for="e_holder">Holder</label><input type="text" id="e_holder" value="'+(v('holder')||(holderSel.equity?esc(holderSel.equity):''))+'" placeholder="Name" required></div>' +
+      '<div class="fld"><label for="e_holder">Holder</label><input type="text" id="e_holder" value="'+(v('holder')||(holderSel.equity?esc(holderSel.equity):''))+'" placeholder="Name" list="holderList" required></div>' +
       '<div class="fld"><label for="e_stock">Stock name</label><input type="text" id="e_stock" value="'+v('stock')+'" placeholder="RELIANCE" required></div>' +
       '<div class="fld"><label for="e_broker">Broker</label><input type="text" id="e_broker" value="'+v('broker')+'" placeholder="Zerodha"></div>' +
       '<div class="fld"><label for="e_currentPrice">Current price <span style="opacity:.6">(optional, for P/L)</span></label><input type="number" id="e_currentPrice" step="any" value="'+v('currentPrice')+'"></div>' +
@@ -4737,7 +4814,7 @@ function maturityPaintForm(){
   wrap.innerHTML =
     '<form class="glass panel" id="matForm" autocomplete="off"><h3>'+(maturityEditing?'Editing entry':'New maturity investment')+'</h3><div class="grid">' +
       '<div class="fld"><label for="m_name">Investment / scheme name</label><input type="text" id="m_name" value="'+v('name')+'" placeholder="Post Office MIS" required></div>' +
-      '<div class="fld"><label for="m_holder">Holder</label><input type="text" id="m_holder" value="'+v('holder')+'" placeholder="Name"></div>' +
+      '<div class="fld"><label for="m_holder">Holder</label><input type="text" id="m_holder" value="'+v('holder')+'" placeholder="Name" list="holderList"></div>' +
       '<div class="fld"><label for="m_investmentType">Investment type</label><input type="text" id="m_investmentType" value="'+v('investmentType')+'" placeholder="Post Office / Corporate FD / NCD…"></div>' +
       '<div class="fld"><label for="m_startDate">Start date</label><input type="date" id="m_startDate" value="'+v('startDate')+'"></div>' +
       '<div class="fld"><label for="m_maturityDate">Maturity date</label><input type="date" id="m_maturityDate" value="'+v('maturityDate')+'" required></div>' +
@@ -4774,6 +4851,343 @@ function maturityCsv(rows){
   const head = ['Scheme name','Source','Holder','Start date','Maturity date','Invested amount','Expected maturity amount','Interest rate %','Notes'];
   return [head, ...rows.map(r => [r.name, r.source, r.holder||'', r.start||'', r.maturity, r.invested||'',
     has(r.maturityAmt)?r.maturityAmt:'', has(r.rate)?r.rate:'', r.notes||''])];
+}
+
+/* ============================================================
+   TARGET TRACKER — ported from the uploaded daily-trading-sheet
+   tool. Every identifier is prefixed tt/ttPane so nothing here
+   can collide with the rest of the app (it originally reused
+   generic names like `render`, `esc`, `fmtDate` and `MON`, all
+   of which this file already defines for other purposes).
+   Persistence is rewired from window.storage (Claude-only) to
+   this app's own Google Sheet-backed DB.
+   ============================================================ */
+const ttAll = () => recs('targetTracker');
+const ttState = { record: null, editingSetup: false };
+
+function ttPad(n){ return String(n).padStart(2,'0'); }
+function ttToISO(d){ return d.getFullYear()+'-'+ttPad(d.getMonth()+1)+'-'+ttPad(d.getDate()); }
+function ttFromISO(s){ const p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+function ttDateOnly(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function ttAddDaysD(d,n){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()+n); }
+function ttDayDiff(a,b){ return Math.round((ttDateOnly(b)-ttDateOnly(a))/86400000); }
+function ttTodayISO(){ return ttToISO(new Date()); }
+const ttDOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const ttMON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function ttFmtDateShort(d){ return ttPad(d.getDate())+'-'+ttMON[d.getMonth()]+'-'+String(d.getFullYear()).slice(2); }
+function ttFyLabel(d){ const y = d.getMonth()>=3 ? d.getFullYear() : d.getFullYear()-1; return y+'-'+String((y+1)%100).padStart(2,'0'); }
+function ttFmtUSD(v,dec){ dec = dec===undefined?2:dec; v = Number.isFinite(v)?v:0; const s = v<0?'-':''; return s+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec}); }
+function ttDefaultSetup(){ return { holder: holderSel.targetTracker||'', capital:'', dailyTargetPct:'0.5', startDate: ttTodayISO(), durationYears:'1' }; }
+
+function ttComputeRows(rec){
+  const start = ttDateOnly(ttFromISO(rec.startDate));
+  const end = new Date(start.getFullYear()+Number(rec.durationYears), start.getMonth(), start.getDate());
+  end.setDate(end.getDate()-1);
+  const totalDays = ttDayDiff(start, end) + 1;
+  const tISO = ttTodayISO();
+  const entries = rec.entries || {};
+  const rows = [];
+  let opening = rec.capital, cumulative = 0;
+  for(let d=1; d<=totalDays; d++){
+    const date = ttAddDaysD(start, d-1);
+    const dateStr = ttToISO(date);
+    const dow = date.getDay();
+    const isWeekend = dow===0 || dow===6;
+    const isNewFY = date.getMonth()===3 && date.getDate()===1;
+    const isToday = dateStr === tISO;
+    const isFuture = dateStr > tISO;
+    const targetProfit = opening * rec.dailyTargetPct / 100;
+    const entry = entries[dateStr] || { actual:0, withdrawal:0 };
+    const actual = Number.isFinite(entry.actual) ? entry.actual : 0;
+    const withdrawal = Number.isFinite(entry.withdrawal) ? entry.withdrawal : 0;
+    const actualPct = opening>0 ? (actual/opening*100) : 0;
+    const vsTarget = actual - targetProfit;
+    const closing = opening + actual - withdrawal;
+    cumulative += actual;
+    rows.push({ d, dateStr, date, dow, isWeekend, isNewFY, isToday, isFuture, opening, targetProfit, actual, withdrawal, actualPct, vsTarget, closing, cumulative });
+    opening = closing;
+  }
+  return { rows, totalDays, start, end };
+}
+function ttRowBg(row){
+  if(row.isNewFY) return 'var(--tt-fy-gold)';
+  if(row.isWeekend) return 'var(--tt-weekend)';
+  return row.d % 2 === 0 ? '#FAFBFD' : '#FFFFFF';
+}
+function ttTitleBarHTML(isSetup, model, rec){
+  const meta = isSetup
+    ? ttFmtUSD(rec.capital,0)+' Capital &middot; '+rec.dailyTargetPct+'% Daily Target &middot; 24&times;7 Every Day &middot; FY '+ttFyLabel(model.start)+' to FY '+ttFyLabel(model.end)+' ('+model.totalDays+' days)'
+    : 'Set up your capital and daily target to begin';
+  return '<div class="tt-titlebar"><span class="tt-t">Daily Trading Profit Tracker'+(rec&&rec.holder?' \u2014 '+esc(rec.holder):'')+'</span>' +
+    '<span class="tt-sep">&middot;</span><span class="tt-meta">'+meta+'</span>' +
+    (isSetup ? '<button class="tt-gear-btn" id="tt-edit-setup-btn" title="Edit setup">&#9881;</button>' : '') +
+    '</div>';
+}
+function ttInstrHTML(){
+  return '<div class="tt-instr">' +
+    '<span><span class="tt-legend-sw" style="background:var(--tt-withdraw-fill);border:1px solid #E3C24A;"></span>Enter data in yellow columns (Actual Profit $, Withdrawal $)</span>' +
+    '<span><span class="tt-legend-sw" style="background:var(--tt-weekend);border:1px solid #C7C9D1;"></span>Grey = Weekend</span>' +
+    '<span><span class="tt-legend-sw" style="background:var(--tt-fy-gold-strong);"></span>Gold = New FY</span>' +
+    '<button class="tt-today-btn" id="tt-jump-today-btn">Jump to Today</button></div>';
+}
+function ttInstrHTMLMinimal(){ return '<div class="tt-instr"><span>Fill in the fields below, then start tracking.</span></div>'; }
+function ttSetupCardHTML(isEdit, prefill){
+  return '<div class="tt-setup-card"><div class="tt-setup-title">'+(isEdit?'Edit tracker setup':'Set up your daily tracker')+'</div>' +
+    '<div class="tt-field-grid">' +
+      '<div class="tt-field"><label>Holder</label><input type="text" id="tt-s-holder" list="holderList" placeholder="Name" value="'+esc(prefill.holder||'')+'"'+(isEdit?' disabled':'')+'/></div>' +
+      '<div class="tt-field"><label>Capital ($)</label><input type="number" inputmode="decimal" id="tt-s-capital" placeholder="10000" value="'+esc(prefill.capital)+'"/></div>' +
+      '<div class="tt-field"><label>Daily Target %</label><input type="number" inputmode="decimal" step="0.01" id="tt-s-target" value="'+esc(prefill.dailyTargetPct)+'"/></div>' +
+      '<div class="tt-field"><label>Start Date</label><input type="date" id="tt-s-start" value="'+esc(prefill.startDate)+'"/></div>' +
+      '<div class="tt-field"><label>Duration (Years)</label><select id="tt-s-years">' +
+        [1,2,3,4,5].map(y => '<option value="'+y+'"'+(String(y)===String(prefill.durationYears)?' selected':'')+'>'+y+' year'+(y>1?'s':'')+'</option>').join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="tt-setup-actions">' +
+      (isEdit ? '<button class="tt-btn-text" id="tt-s-reset-btn">Reset all data</button>' : '<span></span>') +
+      '<div style="display:flex;gap:10px;">' +
+        (isEdit ? '<button class="tt-btn-text" style="color:var(--tt-muted);" id="tt-s-cancel-btn">Cancel</button>' : '') +
+        '<button class="tt-btn-primary" id="tt-s-save-btn">'+(isEdit?'Save changes':'Start tracking')+'</button>' +
+      '</div>' +
+    '</div></div>';
+}
+function ttTableHTML(model){
+  const headers = [
+    ['Day #','tt-freeze1'], ['Date',''], ['Day',''], ['Wk/Wknd',''],
+    ['Opening Capital ($)',''], ['Target Profit ($)',''],
+    ['&larr; Actual Profit ($)','tt-editcol'], ['Actual %',''], ['&larr; Withdrawal ($)','tt-editcol'],
+    ['Closing Capital ($)',''], ['vs Target ($)',''], ['Cumul. Profit ($)',''],
+  ];
+  const thead = '<tr>'+headers.map(h => '<th class="'+h[1]+(h[1]==='tt-freeze1'?' tt-left':'')+'">'+h[0]+'</th>').join('')+'</tr>';
+  const bodyRows = model.rows.map(row => {
+    const bg = ttRowBg(row);
+    const wk = row.isWeekend ? '<span class="tt-red">Weekend</span>' : '<span class="tt-green">Weekday</span>';
+    const vsColor = row.vsTarget >= 0 ? 'tt-green' : 'tt-red';
+    const actualInput = row.isFuture
+      ? '<span class="tt-dash">&mdash;</span>'
+      : '<input class="tt-cell-input" style="color:#fff;" type="number" step="0.01" value="'+(row.actual||'')+'" placeholder="0" data-date="'+row.dateStr+'" data-field="actual"/>';
+    const withdrawInput = row.isFuture
+      ? '<span class="tt-dash">&mdash;</span>'
+      : '<input class="tt-cell-input" type="number" step="0.01" value="'+(row.withdrawal||'')+'" placeholder="0" data-date="'+row.dateStr+'" data-field="withdrawal"/>';
+    return '<tr class="'+(row.isToday?'tt-today':'')+'">' +
+      '<td class="tt-freeze1" style="background:'+bg+';">'+row.d+'</td>' +
+      '<td class="tt-left" style="background:'+bg+';">'+ttFmtDateShort(row.date)+'</td>' +
+      '<td class="tt-left" style="background:'+bg+';">'+ttDOW[row.dow]+'</td>' +
+      '<td class="tt-center" style="background:'+bg+';">'+wk+'</td>' +
+      '<td style="background:'+bg+';">'+ttFmtUSD(row.opening)+'</td>' +
+      '<td style="background:'+bg+';">'+ttFmtUSD(row.targetProfit)+'</td>' +
+      '<td style="background:var(--tt-actual-fill);">'+actualInput+'</td>' +
+      '<td style="background:'+bg+';">'+row.actualPct.toFixed(2)+'%</td>' +
+      '<td style="background:var(--tt-withdraw-fill);">'+withdrawInput+'</td>' +
+      '<td style="background:'+bg+';">'+ttFmtUSD(row.closing)+'</td>' +
+      '<td class="'+vsColor+'" style="background:'+bg+';">'+ttFmtUSD(row.vsTarget)+'</td>' +
+      '<td style="background:'+bg+';">'+ttFmtUSD(row.cumulative)+'</td>' +
+    '</tr>';
+  }).join('');
+  return '<div class="tt-sheet-wrapper" id="tt-sheet-wrapper"><table><thead>'+thead+'</thead><tbody>'+bodyRows+'</tbody></table></div>';
+}
+function ttDisclaimerHTML(){
+  return '<p class="tt-disclaimer">This tracker only records what you enter \u2014 it does not assume you\u2019ll hit target on future days (they show &mdash; until logged), so the table won\u2019t project unrealistic guaranteed growth. Not trading advice; leveraged trading is high-risk, so size positions using your own risk rules.</p>';
+}
+
+function ttPaint(){
+  const pane = $('ttPane'); if(!pane) return;
+  const wrapperEl = document.getElementById('tt-sheet-wrapper');
+  const savedScrollTop = wrapperEl ? wrapperEl.scrollTop : null;
+  const savedScrollLeft = wrapperEl ? wrapperEl.scrollLeft : null;
+
+  const rec = ttState.record;
+  const isSetup = !!rec;
+  let model = null;
+  if(isSetup) model = ttComputeRows(rec);
+
+  let html = ttTitleBarHTML(isSetup && !ttState.editingSetup, model, rec);
+  if(!isSetup || ttState.editingSetup){
+    const prefill = isSetup ? Object.assign({}, rec) : ttDefaultSetup();
+    html += '<div style="background:#fff;">'+ttInstrHTMLMinimal()+'</div>';
+    html += ttSetupCardHTML(isSetup, prefill);
+  }else{
+    html += ttInstrHTML();
+    html += ttTableHTML(model);
+    html += ttDisclaimerHTML();
+  }
+  pane.innerHTML = html;
+  ttAttachHandlers();
+
+  const newWrapper = document.getElementById('tt-sheet-wrapper');
+  if(newWrapper && savedScrollTop !== null){ newWrapper.scrollTop = savedScrollTop; newWrapper.scrollLeft = savedScrollLeft; }
+}
+
+function ttAttachHandlers(){
+  const editBtn = $('tt-edit-setup-btn');
+  if(editBtn) editBtn.addEventListener('click', () => { ttState.editingSetup = !ttState.editingSetup; ttPaint(); });
+
+  const cancelBtn = $('tt-s-cancel-btn');
+  if(cancelBtn) cancelBtn.addEventListener('click', () => { ttState.editingSetup = false; ttPaint(); });
+
+  const saveBtn = $('tt-s-save-btn');
+  if(saveBtn) saveBtn.addEventListener('click', async () => {
+    const holderInput = $('tt-s-holder');
+    const holder = ttState.record ? ttState.record.holder : (holderInput ? holderInput.value.trim() : '');
+    const capital = parseFloat($('tt-s-capital').value);
+    const dailyTargetPct = parseFloat($('tt-s-target').value);
+    const startDate = $('tt-s-start').value;
+    const durationYears = $('tt-s-years').value;
+    if(!holder || !capital || capital<=0 || !dailyTargetPct || dailyTargetPct<=0 || !startDate){
+      alert('Please fill in all fields with valid values, including a holder name.'); return;
+    }
+    if(ttState.record){
+      Object.assign(ttState.record, { capital, dailyTargetPct, startDate, durationYears });
+    }else{
+      const rec2 = { id: uid(), holder, capital, dailyTargetPct, startDate, durationYears, entries: {} };
+      ttAll().push(rec2);
+      ttState.record = rec2;
+      holderSel.targetTracker = holder;
+    }
+    ttState.editingSetup = false;
+    await saveDB(); buildNav(); render();
+  });
+
+  const resetBtn = $('tt-s-reset-btn');
+  if(resetBtn) resetBtn.addEventListener('click', async () => {
+    if(!confirm('Delete this holder\u2019s entire tracker \u2014 capital, target and every day logged? This cannot be undone.')) return;
+    DB.records.targetTracker = ttAll().filter(r => r !== ttState.record);
+    ttState.record = null; ttState.editingSetup = false;
+    await saveDB(); buildNav(); render();
+  });
+
+  const jumpBtn = $('tt-jump-today-btn');
+  if(jumpBtn) jumpBtn.addEventListener('click', () => {
+    const el = document.querySelector('#ttPane tr.tt-today');
+    if(el) el.scrollIntoView({block:'center'});
+  });
+
+  document.querySelectorAll('#ttPane .tt-cell-input').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const date = inp.getAttribute('data-date'), field = inp.getAttribute('data-field');
+      const val = parseFloat(inp.value);
+      if(!ttState.record.entries) ttState.record.entries = {};
+      const cur = ttState.record.entries[date] ? Object.assign({}, ttState.record.entries[date]) : { actual:0, withdrawal:0 };
+      cur[field] = Number.isFinite(val) ? val : 0;
+      ttState.record.entries[date] = cur;
+      await saveDB();
+      ttPaint();
+    });
+  });
+}
+
+function renderTargetTracker(){
+  const allRecs = ttAll();
+  const holders = distinctHolders(allRecs);
+  if(holders.length <= 1) holderSel.targetTracker = holders[0] || null;
+  if(holderSel.targetTracker && !holders.includes(holderSel.targetTracker)) holderSel.targetTracker = null;
+
+  if(holders.length > 1 && !holderSel.targetTracker){
+    $('main').innerHTML =
+      '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Target Tracker</h2>' +
+      '<p>Pick a holder to see their daily trading tracker.</p></div><div class="eyebrow">'+allRecs.length+' tracker'+(allRecs.length===1?'':'s')+'</div></div>' +
+      '<div class="tiles">' + holderGridHTML(allRecs, mine => {
+        const m = ttComputeRows(mine[0]);
+        const logged = m.rows.filter(row => !row.isFuture);
+        const last = logged[logged.length-1];
+        return last ? ttFmtUSD(last.cumulative)+' so far' : 'not started';
+      }) + '</div>';
+    $('main').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { holderSel.targetTracker = b.dataset.pick; render(); }));
+    return;
+  }
+
+  ttState.record = allRecs.find(r => (r.holder||'').trim() === holderSel.targetTracker) || null;
+  ttState.editingSetup = false;
+
+  $('main').innerHTML =
+    '<div class="phead"><div><div class="eyebrow">Investment · module</div><h2>Target Tracker</h2>' +
+    '<p>Set a starting capital and a daily profit target — log what actually happened each day and see it stack up against target, weekend by weekend, FY by FY.</p></div>' +
+    '<div class="eyebrow" id="count">'+(ttState.record?'tracking since '+fmtDate(ttState.record.startDate):'not set up')+'</div></div>' +
+    (holders.length > 1 ? holderBackRow('targetTracker') : '') +
+    '<div id="ttPane"></div>' +
+    '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
+
+  $('exportBtn').addEventListener('click', () => download('investment-target-tracker.csv', ttCsv()));
+  ttPaint();
+}
+
+function ttCsv(all){
+  const list = all ? ttAll() : (ttState.record ? [ttState.record] : []);
+  const head = ['Holder','Day #','Date','Day','Weekend?','Opening Capital','Target Profit','Actual Profit','Actual %','Withdrawal','Closing Capital','vs Target','Cumulative Profit'];
+  const rows = [];
+  list.forEach(rec => {
+    const m = ttComputeRows(rec);
+    m.rows.forEach(row => rows.push([rec.holder||'', row.d, row.dateStr, ttDOW[row.dow], row.isWeekend?'Yes':'No',
+      row.opening.toFixed(2), row.targetProfit.toFixed(2), row.actual.toFixed(2), row.actualPct.toFixed(2),
+      row.withdrawal.toFixed(2), row.closing.toFixed(2), row.vsTarget.toFixed(2), row.cumulative.toFixed(2)]));
+  });
+  return [head, ...rows];
+}
+
+/* ============================================================
+   SET UP — a shared list of holder names. Every "Holder" field
+   across every module points a <datalist> at this list, so
+   picking a name that already exists (instead of retyping it
+   slightly differently) is a suggestion, not a typo waiting to
+   happen — holder grouping only works if the spelling matches.
+   ============================================================ */
+const setupAll = () => recs('setup');
+function holderNames(){
+  return setupAll().map(r => r.name).filter(Boolean).sort((a,b) => a.localeCompare(b));
+}
+function refreshHolderList(){
+  const dl = $('holderList'); if(!dl) return;
+  dl.innerHTML = holderNames().map(n => '<option value="'+esc(n)+'">').join('');
+}
+
+function renderSetup(){
+  const list = setupAll().slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  $('main').innerHTML =
+    '<div class="phead"><div><div class="eyebrow">Setup</div><h2>Holder names</h2>' +
+    '<p>Add the names of everyone whose investments you track. They\u2019ll show up as suggestions on every Holder field in every module — pick one instead of retyping it, and holder grouping stays consistent everywhere.</p></div>' +
+    '<div class="eyebrow" id="count"></div></div>' +
+    '<form class="glass panel" id="setupForm" autocomplete="off"><h3>Add a holder</h3><div class="grid">' +
+      '<div class="fld"><label for="su_name">Name</label><input type="text" id="su_name" placeholder="e.g. Kamal" required></div>' +
+      '<div class="err" id="setupErr"></div>' +
+      '<div class="actions"><button type="submit" class="btn-primary">Add holder</button></div>' +
+    '</div></form>' +
+    '<div id="setupBook"></div>' +
+    '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
+    '<span><button type="button" id="exportBtn">Export CSV</button></span></div>';
+
+  $('count').textContent = list.length + (list.length===1?' holder':' holders');
+  $('exportBtn').addEventListener('click', () => download('investment-holders.csv', [['Holder name'], ...list.map(r=>[r.name])]));
+  $('setupForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = $('su_name').value.trim();
+    if(!name){ $('setupErr').textContent = 'Enter a name.'; return; }
+    if(holderNames().some(n => n.toLowerCase() === name.toLowerCase())){
+      $('setupErr').textContent = 'That name is already on the list.'; return;
+    }
+    setupAll().push({ id:uid(), name });
+    $('setupErr').textContent = '';
+    await saveDB(); refreshHolderList(); render();
+  });
+  setupPaintBook(list);
+}
+
+function setupPaintBook(list){
+  const book = $('setupBook'); if(!book) return;
+  if(!list.length){
+    book.innerHTML = '<div class="glass empty"><strong>No holders added yet</strong>Add the first name above — it\u2019ll immediately suggest itself on every Holder field across the app.</div>';
+    return;
+  }
+  book.innerHTML = '<div class="glass" style="padding:8px">' + list.map(r =>
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 10px;border-bottom:1px solid var(--stroke)">' +
+    '<span style="font-weight:600">'+esc(r.name)+'</span>' +
+    '<button type="button" class="undo" data-sudel="'+r.id+'">Remove</button></div>'
+  ).join('') + '</div>';
+  book.onclick = async e => {
+    const b = e.target.closest('button'); if(!b || !b.dataset.sudel) return;
+    if(!confirm('Remove "'+esc((list.find(r=>r.id===b.dataset.sudel)||{}).name||'')+'" from the holder list? This only removes the suggestion — any existing entries under that name are untouched.')) return;
+    DB.records.setup = setupAll().filter(r => r.id !== b.dataset.sudel);
+    await saveDB(); refreshHolderList(); render();
+  };
 }
 
 /* ============================================================
@@ -4971,6 +5385,7 @@ $('signinBtn').addEventListener('click', async () => {
     $('signinMsg').textContent = 'Loading your data…';
     await loadDB();
     fetchSheetName();
+    refreshHolderList();
     if(DB.theme === 'dawn'){ document.body.classList.add('dawn'); $('themeBtn').textContent = 'Night'; }
     $('signinGate').style.display = 'none';
     $('appShell').style.display = '';
@@ -4987,6 +5402,7 @@ $('pullBtn').addEventListener('click', async () => {
   if(!confirm('Reload from the Google Sheet? Anything on screen that hasn\u2019t saved yet will be replaced.')) return;
   $('dbMsg').textContent = 'Pulling…'; $('dbMsg').style.color = '';
   await loadDB();
+  refreshHolderList();
   render();
   $('dbMsg').textContent = dbLoadError ? dbLoadError : 'Pulled the latest data from the Sheet.';
   $('dbMsg').style.color = dbLoadError ? 'var(--loss)' : 'var(--gain)';
@@ -5051,7 +5467,7 @@ $('xlsxFile').addEventListener('change', async e => {
     if(!confirm('This replaces everything currently in the app and the Google Sheet with the contents of this file. Continue?')) return;
     DB = Object.assign({capital:null, records:{}}, parsed);
     await saveDB();
-    render(); buildNav();
+    refreshHolderList(); render(); buildNav();
     $('dbMsg').textContent = 'Restored from '+file.name+' and pushed to the Sheet.';
     $('dbMsg').style.color = 'var(--gain)';
   }catch(err){
@@ -5069,7 +5485,7 @@ $('jsonFile').addEventListener('change', async e => {
     if(!confirm('This replaces everything currently in the app and the Google Sheet with the contents of '+file.name+'. Continue?')) return;
     DB = Object.assign({capital:null, records:{}}, parsed);
     await saveDB();
-    render(); buildNav();
+    refreshHolderList(); render(); buildNav();
     $('dbMsg').textContent = 'Restored from '+file.name+' and pushed to the Sheet.';
     $('dbMsg').style.color = 'var(--gain)';
   }catch(err){
