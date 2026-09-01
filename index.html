@@ -6,58 +6,148 @@
 <title>Investment — V7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
-    --sans:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-    --gain:#3DDC97; --loss:#FF6B6B; --open:#FFC46B; --accent:#8B7CFF;
-    --glass:rgba(255,255,255,.07); --glass-hi:rgba(255,255,255,.13);
-    --stroke:rgba(255,255,255,.16); --field:rgba(255,255,255,.06);
-    --ink:#EDF1FA; --muted:rgba(237,241,250,.58);
-    --shadow:0 18px 40px rgba(4,6,20,.38);
+    /* semantic colour */
+    --gain:#0F9D58; --loss:#D93025; --open:#B26A00; --accent:#2563EB; --accent-soft:#EFF4FF;
+    /* neutral surfaces */
+    --page:#F8FAFC; --surface:#FFFFFF; --surface-2:#F1F5F9; --surface-3:#E2E8F0;
+    --glass:#FFFFFF; --glass-hi:#F1F5F9; --field:#FFFFFF;
+    --stroke:#E2E8F0; --stroke-strong:#CBD5E1;
+    --ink:#0F172A; --ink-2:#334155; --muted:#64748B;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.06);
+    --shadow-lg:0 2px 4px rgba(15,23,42,.04), 0 12px 28px rgba(15,23,42,.10);
+    --r:14px;
   }
   body.dawn{
-    --glass:rgba(255,255,255,.5); --glass-hi:rgba(255,255,255,.72);
-    --stroke:rgba(255,255,255,.78); --field:rgba(255,255,255,.58);
-    --ink:#1B2340; --muted:rgba(27,35,64,.62);
-    --gain:#0E9B6B; --loss:#D93B3B; --open:#B87400; --accent:#6449E8;
-    --shadow:0 18px 40px rgba(60,70,130,.18);
+    /* dark mode, now the opt-in rather than the default */
+    --page:#0B1120; --surface:#151C2C; --surface-2:#1C2437; --surface-3:#273049;
+    --glass:#151C2C; --glass-hi:#1C2437; --field:#101725;
+    --stroke:#273049; --stroke-strong:#3A4560;
+    --ink:#F1F5F9; --ink-2:#CBD5E1; --muted:#94A3B8;
+    --gain:#34D399; --loss:#F87171; --open:#FBBF24; --accent:#60A5FA; --accent-soft:#1E293B;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.28);
+    --shadow-lg:0 2px 4px rgba(0,0,0,.3), 0 12px 28px rgba(0,0,0,.36);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;min-height:100%}
   body{min-height:100vh}
-  body{font-family:var(--sans);color:var(--ink);font-size:15px;line-height:1.45;background:#0B1026;
-       -webkit-font-smoothing:antialiased;overflow-x:hidden;transition:color .4s ease}
-  body.dawn{background:#E4E9F7}
+  body{font-family:var(--sans);color:var(--ink);font-size:14.5px;line-height:1.5;background:var(--page);
+       -webkit-font-smoothing:antialiased;overflow-x:hidden;
+       transition:background .25s ease,color .25s ease}
 
-  .sky{position:fixed;inset:0;z-index:-2;overflow:hidden}
-  .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
-  .b1{width:52vw;height:52vw;background:#7C5CFF;top:-12vw;left:-8vw}
-  .b2{width:44vw;height:44vw;background:#22D3EE;bottom:-14vw;right:-6vw;opacity:.42}
-  .b3{width:38vw;height:38vw;background:#F472B6;top:38%;left:46%;opacity:.35}
-  body.dawn .b1{background:#9AB6FF} body.dawn .b2{background:#7FE3D5} body.dawn .b3{background:#F3A8D8}
-  .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;
-    background-image:radial-gradient(rgba(255,255,255,.045) 1px,transparent 1px);background-size:3px 3px}
+  /* decorative background layers retired — kept as no-ops so existing markup stays valid */
+  .sky,.blob,.grain{display:none}
 
-  .glass{position:relative;background:var(--glass);border:1px solid var(--stroke);border-radius:18px;
-    box-shadow:var(--shadow);backdrop-filter:blur(18px) saturate(150%);
-    -webkit-backdrop-filter:blur(18px) saturate(150%);overflow:hidden}
-  .glass::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
-    background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,0) 42%)}
-  .glass::after{content:"";position:absolute;inset:-1px;pointer-events:none;border-radius:inherit;opacity:0;
-    transition:opacity .35s ease;
-    background:radial-gradient(320px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.18),transparent 65%)}
-  .glass:hover::after{opacity:1}
+  .glass{position:relative;background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r);
+    box-shadow:var(--shadow);overflow:hidden;transition:box-shadow .18s ease,border-color .18s ease}
 
   /* ---- shell ---- */
-  .app{display:grid;grid-template-columns:250px minmax(0,1fr);gap:20px;width:100%;max-width:1680px;margin:0 auto;padding:22px clamp(14px,2.4vw,34px) 70px;align-items:start}
-  .rail{padding:16px 12px;position:sticky;top:22px}
+  .app{display:grid;grid-template-columns:var(--railw,232px) minmax(0,1fr);gap:18px;width:100%;
+    margin:0 auto;padding:0 clamp(12px,1.6vw,22px) 56px;align-items:start;
+    transition:grid-template-columns .18s ease}
+  body.rail-collapsed .app{--railw:64px}
+  .rail{padding:14px 10px;position:sticky;top:14px}
   .brand{padding:2px 8px 14px}
   .brand .eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+
+  /* ---- top bar ---- */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--stroke);
+    display:flex;align-items:center;gap:12px;padding:10px clamp(12px,1.6vw,22px);margin-bottom:16px}
+  .tb-btn{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:9px;background:transparent;border:1px solid transparent;color:var(--ink-2);font-size:16px;flex-shrink:0}
+  .tb-btn:hover{background:var(--surface-2)}
+  .tb-title{font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
+  .tb-search{flex:1;max-width:460px;position:relative}
+  .tb-search input{width:100%;border:1px solid var(--stroke);background:var(--surface-2);border-radius:10px;
+    padding:8px 12px 8px 32px;font-family:var(--sans);font-size:13.5px;color:var(--ink)}
+  .tb-search input:focus{outline:none;border-color:var(--accent);background:var(--surface);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+  .tb-search .ic{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .tb-select{border:1px solid var(--stroke);background:var(--surface-2);border-radius:9px;padding:7px 10px;
+    font-family:var(--mono);font-size:11.5px;color:var(--ink-2);cursor:pointer}
+  .tb-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:inline-flex;
+    align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex-shrink:0}
+  .searchpop{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);
+    border:1px solid var(--stroke);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;z-index:40;max-height:340px;overflow:auto}
+  .searchpop button{display:flex;width:100%;align-items:center;gap:9px;background:none;border:none;
+    padding:8px 10px;border-radius:8px;text-align:left;font-size:13.5px;color:var(--ink)}
+  .searchpop button:hover{background:var(--surface-2)}
+  .searchpop .sp-sub{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .searchpop .sp-empty{padding:14px;text-align:center;color:var(--muted);font-size:13px}
+
+  /* ---- collapsed sidebar ---- */
+  body.rail-collapsed .rail .navlabel,
+  body.rail-collapsed .rail .navbtn span:nth-child(2),
+  body.rail-collapsed .rail .navbtn .n,
+  body.rail-collapsed .rail .navfolder .n,
+  body.rail-collapsed .rail .navfolder .chev,
+  body.rail-collapsed .rail .navgroup,
+  body.rail-collapsed .rail .brand .eyebrow,
+  body.rail-collapsed .rail .brand h1,
+  body.rail-collapsed .rail .dbpanel,
+  body.rail-collapsed .rail .railfoot{display:none}
+  body.rail-collapsed .rail{padding:14px 8px}
+  body.rail-collapsed .rail .navbtn,
+  body.rail-collapsed .rail .navfolder{justify-content:center;padding:9px 0}
+  body.rail-collapsed .addinv{padding:9px 0;justify-content:center}
+  body.rail-collapsed .addinv span:last-child{display:none}
+
+  .addinv{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-bottom:12px;
+    background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;
+    font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:none}
+  .addinv:hover{filter:brightness(1.06)}
+
+  /* ---- KPI hero ---- */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:16px}
+  .kpi{padding:16px 18px;position:relative}
+  .kpi:hover{box-shadow:var(--shadow-lg)}
+  .kpi .kpi-label{font-size:12px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .kpi .kpi-val{font-size:30px;font-weight:700;letter-spacing:-.025em;margin-top:6px;line-height:1.15;
+    font-variant-numeric:tabular-nums}
+  .kpi .kpi-sub{font-size:12px;color:var(--muted);margin-top:5px}
+  .kpi .trend{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;
+    padding:2px 7px;border-radius:999px;margin-left:6px}
+  .trend.up{color:var(--gain);background:color-mix(in srgb,var(--gain) 12%,transparent)}
+  .trend.down{color:var(--loss);background:color-mix(in srgb,var(--loss) 12%,transparent)}
+  .trend.flat{color:var(--muted);background:var(--surface-2)}
+  .kpi-spark{height:34px;margin-top:10px}
+
+  /* ---- dashboard panels ---- */
+  .dash-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin-bottom:16px}
+  .col-7{grid-column:span 7} .col-5{grid-column:span 5}
+  .col-6{grid-column:span 6} .col-12{grid-column:span 12} .col-4{grid-column:span 4}
+  @media (max-width:1080px){ .col-7,.col-5,.col-6,.col-4{grid-column:span 12} }
+  .panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .panel-h h3{margin:0;font-size:14px;font-weight:650;letter-spacing:-.01em}
+  .panel-h .hint{font-size:11.5px;color:var(--muted)}
+  .pad{padding:16px 18px}
+
+  /* ---- breakdown list ---- */
+  .bd-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:default;
+    transition:background .12s ease}
+  .bd-row:hover,.bd-row.hot{background:var(--surface-2)}
+  .bd-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13.5px;font-weight:500}
+  .bd-pct{font-family:var(--mono);font-size:11.5px;color:var(--muted);width:48px;text-align:right}
+  .bd-amt{font-family:var(--mono);font-size:13px;font-weight:600;text-align:right;white-space:nowrap}
+  .bd-bar{height:4px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin-top:5px}
+  .bd-bar i{display:block;height:100%;border-radius:99px}
+
+  /* ---- mini list rows (transactions / maturities / performers) ---- */
+  .mini-row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--stroke);font-size:13.5px}
+  .mini-row:last-child{border-bottom:none}
+  .mini-row .mr-main{flex:1;min-width:0}
+  .mini-row .mr-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+  .mini-row .mr-s{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .mini-row .mr-v{font-family:var(--mono);font-weight:600;white-space:nowrap}
+  .mini-empty{padding:18px 2px;color:var(--muted);font-size:13px;text-align:center}
   .brand h1{margin:3px 0 0;font-size:21px;font-weight:600;letter-spacing:-.02em}
   .navic{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;
     background:var(--glass);font-size:14px;flex-shrink:0}
@@ -285,6 +375,13 @@
 
   @media (max-width:980px){
     .app{grid-template-columns:1fr;gap:14px}
+    body.rail-collapsed .app{grid-template-columns:1fr}
+    body.rail-collapsed .rail .navlabel,
+    body.rail-collapsed .rail .navbtn span:nth-child(2){display:inline}
+    .topbar{flex-wrap:wrap}
+    .tb-search{order:3;flex-basis:100%;max-width:none}
+    .kpi-grid{grid-template-columns:1fr}
+    .kpi .kpi-val{font-size:26px}
     .rail{position:static;padding:12px}
     .railnav{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 6px}
     .navgroup{display:none}
@@ -399,10 +496,28 @@
 <div class="sky"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <div class="grain"></div>
 
-<div id="signinGate" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#0B1026;color:#EDF1FA;font-family:'Outfit',sans-serif;">
-  <div style="font-size:20px;font-weight:600;">Investment Tracker</div>
-  <div id="signinMsg" style="opacity:.7;font-size:14px;">Sign in with the Google account that owns your data sheet.</div>
-  <button id="signinBtn" style="padding:12px 22px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:#8B7CFF;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">Sign in with Google</button>
+<div id="signinGate" style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:#F8FAFC;color:#0F172A;font-family:'Inter',system-ui,sans-serif;">
+  <div style="font-size:22px;font-weight:700;letter-spacing:-.02em;">Investment Tracker</div>
+  <div id="signinMsg" style="color:#64748B;font-size:14px;">Sign in with the Google account that owns your data sheet.</div>
+  <button id="signinBtn" style="padding:11px 22px;border-radius:10px;border:none;background:#2563EB;color:#fff;font-size:14.5px;font-weight:600;cursor:pointer;">Sign in with Google</button>
+</div>
+
+<div id="topbarWrap" style="display:none;">
+  <header class="topbar">
+    <button type="button" class="tb-btn" id="railToggle" title="Collapse sidebar">&#9776;</button>
+    <span class="tb-title" id="tbTitle">Overview</span>
+    <div class="tb-search">
+      <span class="ic">&#128269;</span>
+      <input type="text" id="globalSearch" placeholder="Search modules, holders, schemes…" autocomplete="off">
+      <div id="searchPop" class="searchpop" style="display:none"></div>
+    </div>
+    <div class="tb-right">
+      <select class="tb-select" id="fySelect" title="Financial year"></select>
+      <button type="button" class="tb-btn" id="notifBtn" title="Alerts">&#128276;</button>
+      <button type="button" class="tb-btn" id="themeBtn2" title="Toggle dark mode">&#9789;</button>
+      <span class="tb-avatar" id="tbAvatar">–</span>
+    </div>
+  </header>
 </div>
 
 <div class="app" style="display:none;" id="appShell">
@@ -412,6 +527,7 @@
       <div class="eyebrow">Portfolio · V7</div>
       <h1>Investment</h1>
     </div>
+    <button type="button" class="addinv" id="addInvBtn" title="Add an investment"><span>+</span><span>Add Investment</span></button>
     <div class="railnav" id="nav"></div>
     <div class="railfoot">
       <button type="button" class="themeBtn" id="themeBtn">Dawn</button>
@@ -790,6 +906,8 @@ document.addEventListener('click', e => {
 
 function render(){
   buildNav();
+  const tb = $('tbTitle');
+  if(tb) tb.textContent = route === 'home' ? 'Overview' : ((MOD(route)||{}).name || 'Overview');
   if(route === 'home') return renderHome();
   const m = MOD(route);
   if(!m) return renderHome();
@@ -887,74 +1005,270 @@ function investedTotals(){
 function investedByModule(){
   return MODULES
     .filter(m => m.id !== 'credentials')
-    .map(m => ({ name: m.name, icon: m.icon, amount: moduleInvestedAmount(m.id, DB.records[m.id]||[]) }))
+    .map(m => ({ id:m.id, name: m.name, icon: m.icon, amount: moduleInvestedAmount(m.id, DB.records[m.id]||[]) }))
     .filter(x => x.amount > 0)
     .sort((a,b) => b.amount - a.amount);
 }
 
-let homeChart = null;
-const PIE_COLORS = ['#8B7CFF','#3DDC97','#FFC46B','#FF6B6B','#5EC8F2','#F2A0E8','#C9A227','#6EE7B7',
-  '#F59E0B','#EF4444','#818CF8','#34D399','#FBBF24','#FB7185','#38BDF8','#A78BFA'];
+/* Every dated money-in event we can actually evidence, newest first.
+   Used for Recent Transactions and for the cumulative-invested chart.
+   Only real, dated records — nothing inferred or projected. */
+function cashflowLedger(){
+  const out = [];
+  const push = (date, module, label, amount) => {
+    if(!date || !amount) return;
+    out.push({ date, module, label, amount });
+  };
+  (DB.records.equity||[]).forEach(r => (r.txns||[]).forEach(t => {
+    push(t.date, 'Equity', (t.type==='Buy'?'Bought ':'Sold ')+t.qty+' '+(r.stock||''), (t.type==='Buy'?1:-1)*t.qty*t.price);
+  }));
+  (DB.records.fd||[]).forEach(x => push(x.openDate, 'FD', 'Opened '+(x.fdNo||'FD'), x.amount||0));
+  (DB.records.rd||[]).forEach(x => push(x.openDate, 'RD', 'Opened '+(x.rdNo||'RD'), x.amount||0));
+  (DB.records.bonds||[]).forEach(b => push(b.purchaseDate, 'Bonds', 'Bought '+(b.bondName||'bond'), (b.buyPrice||0)*(b.qty||0)));
+  (DB.records.p2p||[]).forEach(l => {
+    push(l.lendDate, 'P2P', 'Lent via '+(l.platform||'P2P'), l.amount||0);
+    (l.lendMoreTxns||[]).forEach(t => push(t.date, 'P2P', 'Lent more via '+(l.platform||'P2P'), t.amount||0));
+  });
+  (DB.records.chit||[]).forEach(r => (r.paidTxns||[]).forEach(t =>
+    push(t.date, 'Chit Fund', 'Paid '+(r.company||'chit'), t.amount||0)));
+  (DB.records.maturity||[]).forEach(r => push(r.startDate, 'Maturity', 'Started '+(r.name||''), r.investedAmount||0));
+  ['ppf','ssy','sip','etf','apy','nps','epf','insurance'].forEach(mid => {
+    const mod = MOD(mid);
+    (DB.records[mid]||[]).forEach(a => {
+      Object.values(a.txns||{}).forEach(t => {
+        if(t && t.paid && t.paidOn) push(t.paidOn, mod?mod.name:mid, 'Instalment paid', t.amount||a.amount||0);
+      });
+    });
+  });
+  return out.sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+}
+
+/* Cumulative invested over time, built from the dated ledger above.
+   This is money-in over time — NOT portfolio market value, which the app
+   has no price history for. Labelled honestly in the UI. */
+function investedSeries(months){
+  months = months || 12;
+  const led = cashflowLedger().slice().reverse(); // oldest first
+  if(!led.length) return { labels:[], data:[] };
+  const now = new Date();
+  const buckets = [];
+  for(let i=months-1; i>=0; i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    buckets.push({ key: d.toISOString().slice(0,7), label: MON[d.getMonth()]+' '+String(d.getFullYear()).slice(2), total:0 });
+  }
+  const firstKey = buckets[0].key;
+  let running = 0;
+  led.forEach(e => { if(e.date.slice(0,7) < firstKey) running += e.amount; });
+  const idx = {}; buckets.forEach((b,i) => idx[b.key] = i);
+  const perBucket = new Array(buckets.length).fill(0);
+  led.forEach(e => { const k = e.date.slice(0,7); if(k in idx) perBucket[idx[k]] += e.amount; });
+  const data = [];
+  perBucket.forEach(v => { running += v; data.push(Math.round(running)); });
+  return { labels: buckets.map(b=>b.label), data };
+}
+
+/* Market value is only known where the person actually entered a price or
+   valuation. We report it alongside how much of the portfolio it covers,
+   so a partial figure is never mistaken for a full one. */
+function marketValueEstimate(){
+  let valued = 0, costOfValued = 0;
+  (DB.records.equity||[]).forEach(r => {
+    const c = equityCompute(r);
+    if(c.currentValue !== null && c.qty > 0){ valued += c.currentValue; costOfValued += c.invested; }
+  });
+  ['sip','etf'].forEach(mid => (DB.records[mid]||[]).forEach(a => {
+    if(has(a.fundValue)){ valued += a.fundValue; costOfValued += recurringTotal(a); }
+  }));
+  (DB.records.nps||[]).forEach(a => {
+    if(has(a.gain)){ valued += recurringTotal(a) + (a.gain||0); costOfValued += recurringTotal(a); }
+  });
+  return { valued, costOfValued, gain: valued - costOfValued,
+    pct: costOfValued ? ((valued-costOfValued)/costOfValued*100) : null };
+}
+
+/* Assets where we can evidence a real return, best first. */
+function topPerformers(limit){
+  const out = [];
+  (DB.records.equity||[]).forEach(r => {
+    const c = equityCompute(r);
+    if(c.currentValue !== null && c.qty > 0 && c.invested > 0)
+      out.push({ name:r.stock||'Stock', sub:'Equity · '+(r.holder||''), gain:c.unrealized, pct:c.unrealized/c.invested*100 });
+  });
+  ['sip','etf'].forEach(mid => (DB.records[mid]||[]).forEach(a => {
+    const inv = recurringTotal(a);
+    if(has(a.fundValue) && inv > 0)
+      out.push({ name:a.name||'Fund', sub:(MOD(mid)?MOD(mid).name:mid)+' · '+(a.holder||''), gain:a.fundValue-inv, pct:(a.fundValue-inv)/inv*100 });
+  }));
+  (DB.records.nps||[]).forEach(a => {
+    const inv = recurringTotal(a);
+    if(has(a.gain) && inv > 0)
+      out.push({ name:(a.holder||'NPS')+' · NPS', sub:'Retirement', gain:a.gain, pct:a.gain/inv*100 });
+  });
+  return out.sort((a,b) => b.pct - a.pct).slice(0, limit||5);
+}
+
+let homeChart = null, growthChart = null, sparkCharts = [];
+const PIE_COLORS = ['#2563EB','#0F9D58','#F59E0B','#D93025','#7C3AED','#0891B2','#DB2777','#65A30D',
+  '#EA580C','#4F46E5','#059669','#B45309','#BE123C','#0284C7','#9333EA','#15803D'];
+
+function animateCount(el, target, fmt){
+  if(!el) return;
+  const dur = 620, t0 = performance.now(), from = 0;
+  const step = now => {
+    const p = Math.min((now-t0)/dur, 1);
+    const eased = 1 - Math.pow(1-p, 3);
+    el.textContent = fmt(from + (target-from)*eased);
+    if(p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function trendChip(pct){
+  if(pct === null || !isFinite(pct)) return '<span class="trend flat">–</span>';
+  const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+  const arrow = pct > 0 ? '\u2191' : pct < 0 ? '\u2193' : '\u2192';
+  return '<span class="trend '+cls+'">'+arrow+' '+Math.abs(pct).toFixed(1)+'%</span>';
+}
 
 function renderHome(){
   const total = MODULES.reduce((s,m) => s + (DB.records[m.id]||[]).length, 0);
   const inv = investedTotals();
   const bd = investedByModule();
+  const mv = marketValueEstimate();
+  const series = investedSeries(12);
+  const ledger = cashflowLedger().slice(0, 6);
+  const perf = topPerformers(5);
+  const todayStr = today();
+  const upcoming = maturityFeed().filter(r => r.maturity >= todayStr).slice(0, 5);
+  const coverage = inv.allTime ? (mv.costOfValued/inv.allTime*100) : 0;
+
+  const kpi = (label, valId, sub, extra) =>
+    '<div class="glass kpi"><div class="kpi-label">'+label+'</div>' +
+    '<div class="kpi-val" id="'+valId+'">—</div>' +
+    '<div class="kpi-sub">'+sub+'</div>'+(extra||'')+'</div>';
 
   $('main').innerHTML =
-    '<div class="phead"><div><div class="eyebrow">Overview</div><h2>All investments</h2>' +
-    '<p>Open the Investment or Credentials folder in the navigation to pick a module and add entries.</p></div>' +
-    '<div class="eyebrow">'+total+' entries tracked</div></div>' +
-    '<div class="stats-grid">' +
-      '<div class="glass stat"><div class="k">Total Invested</div><div class="v">'+inr(inv.allTime)+'</div>' +
-        '<div class="sub">money actually paid, across every module — including all Insurance (Health, Term &amp; others)</div></div>' +
-      '<div class="glass stat pos-edge"><div class="k">Total Invested — '+fyLabel(inv.fy)+'</div><div class="v pos">'+inr(inv.thisFY)+'</div>' +
-        '<div class="sub">this financial year only, including all Insurance premiums</div></div>' +
+    '<div class="kpi-grid">' +
+      kpi('Total Invested', 'kpiInvested', 'money actually paid in, all time \u00b7 '+total+' entries') +
+      kpi('Invested \u2014 '+fyLabel(inv.fy), 'kpiFy', 'this financial year only') +
+      (mv.costOfValued > 0
+        ? kpi('Unrealised P/L '+trendChip(mv.pct), 'kpiPnl',
+            'on '+inr(mv.costOfValued)+' with a value entered \u00b7 '+coverage.toFixed(0)+'% of portfolio')
+        : '<div class="glass kpi"><div class="kpi-label">Unrealised P/L</div>' +
+          '<div class="kpi-val" style="font-size:20px;color:var(--muted)">Not tracked</div>' +
+          '<div class="kpi-sub">Enter a current price on a stock, or a fund value on a SIP, and this fills in automatically.</div></div>') +
     '</div>' +
-    '<div class="glass" style="padding:18px;margin-bottom:18px">' +
-      (bd.length
-        ? '<h3 style="margin:0 0 14px;font-size:14px;font-weight:600">Invested by scheme</h3>' +
-          '<div class="pie-wrap">' +
-            '<div class="pie-canvas-box"><canvas id="homePie"></canvas></div>' +
-            '<div class="pie-legend">' +
+
+    '<div class="dash-grid">' +
+      '<div class="glass pad col-7">' +
+        '<div class="panel-h"><h3>Money invested over time</h3>' +
+        '<span class="hint">cumulative, last 12 months</span></div>' +
+        (series.data.length
+          ? '<div style="height:210px"><canvas id="growthChart"></canvas></div>'
+          : '<div class="mini-empty">Dated entries will chart here as you add them.</div>') +
+      '</div>' +
+      '<div class="glass pad col-5">' +
+        '<div class="panel-h"><h3>Allocation by scheme</h3><span class="hint">hover to link</span></div>' +
+        (bd.length
+          ? '<div style="height:170px;position:relative;margin-bottom:10px"><canvas id="homePie"></canvas></div>' +
+            '<div id="bdList" style="max-height:200px;overflow:auto">' +
               bd.map((x,i) => {
-                const pct2 = inv.allTime ? (x.amount/inv.allTime*100) : 0;
-                return '<div class="pie-row">' +
-                  '<span class="pie-sw" style="background:'+PIE_COLORS[i%PIE_COLORS.length]+'"></span>' +
-                  '<span class="pie-name">'+(x.icon||'')+' '+esc(x.name)+'</span>' +
-                  '<span class="pie-leader"></span>' +
-                  '<span class="pie-pct">'+pct2.toFixed(1)+'%</span>' +
-                  '<span class="pie-amt">'+inr(x.amount)+'</span>' +
-                '</div>';
+                const p = inv.allTime ? (x.amount/inv.allTime*100) : 0;
+                const c = PIE_COLORS[i%PIE_COLORS.length];
+                return '<div class="bd-row" data-bdi="'+i+'">' +
+                  '<span class="pie-sw" style="background:'+c+'"></span>' +
+                  '<span class="bd-name">'+(x.icon||'')+' '+esc(x.name)+
+                    '<span class="bd-bar"><i style="width:'+p.toFixed(1)+'%;background:'+c+'"></i></span></span>' +
+                  '<span class="bd-pct">'+p.toFixed(1)+'%</span>' +
+                  '<span class="bd-amt">'+inr(x.amount)+'</span></div>';
               }).join('') +
-            '</div>' +
-          '</div>'
-        : '<p class="note" style="margin:0">Add some entries to see how your money is split across schemes.</p>') +
+            '</div>'
+          : '<div class="mini-empty">Add entries to see your split.</div>') +
+      '</div>' +
+
+      '<div class="glass pad col-4">' +
+        '<div class="panel-h"><h3>Recent transactions</h3></div>' +
+        (ledger.length ? ledger.map(e =>
+          '<div class="mini-row"><div class="mr-main"><div class="mr-t">'+esc(e.label)+'</div>' +
+          '<div class="mr-s">'+esc(e.module)+' \u00b7 '+fmtDate(e.date)+'</div></div>' +
+          '<div class="mr-v" style="color:'+(e.amount<0?'var(--gain)':'var(--ink)')+'">'+
+            (e.amount<0?'+'+inr(-e.amount):inr(e.amount))+'</div></div>').join('')
+          : '<div class="mini-empty">No dated transactions yet.</div>') +
+      '</div>' +
+
+      '<div class="glass pad col-4">' +
+        '<div class="panel-h"><h3>Top performing assets</h3></div>' +
+        (perf.length ? perf.map(p =>
+          '<div class="mini-row"><div class="mr-main"><div class="mr-t">'+esc(p.name)+'</div>' +
+          '<div class="mr-s">'+esc(p.sub)+'</div></div>' +
+          '<div class="mr-v" style="color:'+(p.gain>=0?'var(--gain)':'var(--loss)')+'">'+
+            (p.gain>=0?'+':'')+inr(p.gain)+' '+trendChip(p.pct)+'</div></div>').join('')
+          : '<div class="mini-empty">Needs a current price or fund value on at least one holding.</div>') +
+      '</div>' +
+
+      '<div class="glass pad col-4">' +
+        '<div class="panel-h"><h3>Upcoming maturities</h3>' +
+        '<button type="button" class="tb-btn" data-go="maturity" title="Open Maturity Tracker" style="width:auto;padding:0 8px;font-size:12px">View all</button></div>' +
+        (upcoming.length ? upcoming.map(r =>
+          '<div class="mini-row"><div class="mr-main"><div class="mr-t">'+esc(r.name)+'</div>' +
+          '<div class="mr-s">'+esc(r.source)+' \u00b7 '+fmtDate(r.maturity)+'</div></div>' +
+          '<div class="mr-v">'+(has(r.maturityAmt)?inr(r.maturityAmt):inr(r.invested||0))+'</div></div>').join('')
+          : '<div class="mini-empty">Nothing maturing yet.</div>') +
+      '</div>' +
     '</div>' +
+
     '<div class="foot"><span id="saveState">'+saveNote+'</span>' +
     '<span><button type="button" id="exportAll">Export everything</button></span></div>';
 
   $('exportAll').addEventListener('click', exportAll);
 
-  if(homeChart){ homeChart.destroy(); homeChart = null; }
-  if(bd.length && window.Chart){
-    const ctx = $('homePie');
-    if(ctx){
-      homeChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: bd.map(x => x.name),
-          datasets: [{ data: bd.map(x => x.amount), backgroundColor: bd.map((x,i) => PIE_COLORS[i%PIE_COLORS.length]), borderWidth: 0 }]
+  animateCount($('kpiInvested'), inv.allTime, v => inr(v));
+  animateCount($('kpiFy'), inv.thisFY, v => inr(v));
+  if(mv.costOfValued > 0 && $('kpiPnl')){
+    $('kpiPnl').style.color = mv.gain >= 0 ? 'var(--gain)' : 'var(--loss)';
+    animateCount($('kpiPnl'), mv.gain, v => (v>=0?'+':'')+inr(v));
+  }
+
+  [homeChart, growthChart].forEach(c => { if(c) c.destroy(); });
+  homeChart = growthChart = null;
+
+  if(series.data.length && window.Chart && $('growthChart')){
+    const css = getComputedStyle(document.body);
+    const accent = css.getPropertyValue('--accent').trim() || '#2563EB';
+    growthChart = new Chart($('growthChart'), {
+      type:'line',
+      data:{ labels:series.labels, datasets:[{ data:series.data, borderColor:accent, borderWidth:2,
+        fill:true, backgroundColor:'rgba(37,99,235,.10)', tension:.35, pointRadius:0, pointHoverRadius:4 }] },
+      options:{ maintainAspectRatio:false, animation:{duration:600},
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => ' '+inr(c.parsed.y)+' invested to date' } } },
+        scales:{ x:{ grid:{display:false}, ticks:{ font:{size:10}, color:css.getPropertyValue('--muted').trim() } },
+          y:{ grid:{ color:css.getPropertyValue('--stroke').trim() }, border:{display:false},
+            ticks:{ font:{size:10}, color:css.getPropertyValue('--muted').trim(),
+              callback:v => v>=10000000?'₹'+(v/10000000).toFixed(1)+'Cr':v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+(v/1000).toFixed(0)+'k' } } } }
+    });
+  }
+
+  if(bd.length && window.Chart && $('homePie')){
+    homeChart = new Chart($('homePie'), {
+      type:'doughnut',
+      data:{ labels:bd.map(x=>x.name), datasets:[{ data:bd.map(x=>x.amount),
+        backgroundColor:bd.map((x,i)=>PIE_COLORS[i%PIE_COLORS.length]), borderWidth:0, hoverOffset:6 }] },
+      options:{ cutout:'64%', maintainAspectRatio:false, animation:{duration:600},
+        onHover:(evt, els) => {
+          document.querySelectorAll('.bd-row').forEach(r => r.classList.remove('hot'));
+          if(els.length){ const row = document.querySelector('.bd-row[data-bdi="'+els[0].index+'"]'); if(row) row.classList.add('hot'); }
         },
-        options: {
-          cutout: '62%',
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + inr(c.parsed) } }
-          }
-        }
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label: c => ' '+c.label+': '+inr(c.parsed)+' ('+(inv.allTime?(c.parsed/inv.allTime*100).toFixed(1):0)+'%)' } } } }
+    });
+    document.querySelectorAll('.bd-row').forEach(row => {
+      row.addEventListener('mouseenter', () => {
+        const i = +row.dataset.bdi;
+        if(homeChart){ homeChart.setActiveElements([{datasetIndex:0, index:i}]); homeChart.update(); }
       });
-    }
+      row.addEventListener('mouseleave', () => {
+        if(homeChart){ homeChart.setActiveElements([]); homeChart.update(); }
+      });
+    });
   }
 }
 
@@ -4571,12 +4885,92 @@ document.addEventListener('pointermove', e => {
   g.style.setProperty('--my', (e.clientY-r.top)+'px');
 }, {passive:true});
 
+function applyThemeLabel(){
+  const dark = document.body.classList.contains('dawn');
+  $('themeBtn').textContent = dark ? 'Light' : 'Dark';
+  const t2 = $('themeBtn2'); if(t2) t2.innerHTML = dark ? '&#9788;' : '&#9789;';
+}
 $('themeBtn').addEventListener('click', async () => {
-  const dawn = document.body.classList.toggle('dawn');
-  $('themeBtn').textContent = dawn ? 'Night' : 'Dawn';
-  DB.theme = dawn ? 'dawn' : 'night';
+  const dark = document.body.classList.toggle('dawn');
+  DB.theme = dark ? 'dawn' : 'night';
+  applyThemeLabel();
+  saveSoon();
+  if(route === 'home') render();
+});
+$('themeBtn2').addEventListener('click', () => $('themeBtn').click());
+
+/* ---- sidebar collapse ---- */
+$('railToggle').addEventListener('click', () => {
+  const collapsed = document.body.classList.toggle('rail-collapsed');
+  DB.railCollapsed = collapsed;
   saveSoon();
 });
+
+/* ---- Add Investment: jump to the module you were last in, else the first one ---- */
+$('addInvBtn').addEventListener('click', () => {
+  const target = (route !== 'home' && MOD(route)) ? route
+    : (MODULES.find(m => m.folder === 'Investment') || {}).id;
+  if(!target) return;
+  route = target; buildNav(); render();
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+
+/* ---- financial year selector ---- */
+function buildFySelect(){
+  const sel = $('fySelect'); if(!sel) return;
+  const cur = currentFY();
+  let html = '';
+  for(let y = cur; y >= cur-5; y--) html += '<option value="'+y+'"'+(y===(DB.viewFy||cur)?' selected':'')+'>'+fyLabel(y)+'</option>';
+  sel.innerHTML = html;
+}
+$('fySelect').addEventListener('change', () => {
+  DB.viewFy = +$('fySelect').value;
+  saveSoon();
+  render();
+});
+
+/* ---- global search across modules and holders ---- */
+function searchIndex(){
+  const out = [];
+  MODULES.forEach(m => out.push({ label:(m.icon||'')+' '+m.name, sub:m.group, go:m.id }));
+  const seen = new Set();
+  MODULES.forEach(m => (DB.records[m.id]||[]).forEach(r => {
+    const h = (r.holder||r.policyHolder||r.name||'').trim();
+    if(h && !seen.has(h.toLowerCase())){ seen.add(h.toLowerCase()); out.push({ label:'\uD83D\uDC64 '+h, sub:'Holder', go:m.id, holder:h, mid:m.id }); }
+  }));
+  return out;
+}
+$('globalSearch').addEventListener('input', () => {
+  const q = $('globalSearch').value.trim().toLowerCase();
+  const pop = $('searchPop');
+  if(!q){ pop.style.display = 'none'; return; }
+  const hits = searchIndex().filter(x => x.label.toLowerCase().includes(q) || (x.sub||'').toLowerCase().includes(q)).slice(0,10);
+  pop.innerHTML = hits.length
+    ? hits.map((h,i) => '<button type="button" data-si="'+i+'">'+esc(h.label)+'<span class="sp-sub">'+esc(h.sub||'')+'</span></button>').join('')
+    : '<div class="sp-empty">Nothing matches that.</div>';
+  pop.style.display = 'block';
+  pop.querySelectorAll('[data-si]').forEach(b => b.addEventListener('click', () => {
+    const h = hits[+b.dataset.si];
+    if(h.holder && h.mid) holderSel[h.mid] = h.holder;
+    route = h.go; $('globalSearch').value = ''; pop.style.display = 'none';
+    buildNav(); render(); window.scrollTo({top:0, behavior:'smooth'});
+  }));
+});
+document.addEventListener('click', e => {
+  if(!e.target.closest('.tb-search')) { const p = $('searchPop'); if(p) p.style.display = 'none'; }
+});
+
+/* ---- notifications: real, derived from upcoming maturities and overdue instalments ---- */
+$('notifBtn').addEventListener('click', () => {
+  const t = today();
+  const soon = maturityFeed().filter(r => r.maturity >= t && r.maturity <= addDays(t,30));
+  const overdue = maturityFeed().filter(r => r.maturity < t);
+  const msg = [];
+  if(soon.length) msg.push(soon.length+' maturing in the next 30 days.');
+  if(overdue.length) msg.push(overdue.length+' past its maturity date.');
+  alert(msg.length ? msg.join('\n') : 'Nothing needs attention right now.');
+});
+
 $('backupBtn').addEventListener('click', () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'}));
@@ -5588,8 +5982,12 @@ $('signinBtn').addEventListener('click', async () => {
     await loadDB();
     fetchSheetName();
     refreshHolderList();
-    if(DB.theme === 'dawn'){ document.body.classList.add('dawn'); $('themeBtn').textContent = 'Night'; }
+    if(DB.theme === 'dawn') document.body.classList.add('dawn');
+    if(DB.railCollapsed) document.body.classList.add('rail-collapsed');
+    applyThemeLabel();
+    buildFySelect();
     $('signinGate').style.display = 'none';
+    $('topbarWrap').style.display = '';
     $('appShell').style.display = '';
     render();
     if(dbLoadError) setTimeout(() => alert(dbLoadError), 300);
